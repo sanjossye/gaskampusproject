@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'register_screen.dart';
+import 'main_pages/home_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -277,7 +278,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildPrimaryButton() {
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        // Navigasi ke HomeScreen dan hapus semua rute sebelumnya agar tidak bisa "back" ke login
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (route) => false,
+        );
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: double.infinity,
