@@ -29,7 +29,7 @@ class GasKampusApp extends StatelessWidget {
         useMaterial3: true,
       ),
       themeMode: ThemeMode.system,
-      home: const OnboardingScreen(),
+      home: const OnboardingWrapper(),
     );
   }
 }

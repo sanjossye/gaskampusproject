@@ -5,8 +5,81 @@ const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
 const Color kBackgroundDark = Color(0xFF1D2210);
 
-class OnboardingScreen extends StatelessWidget {
-  const OnboardingScreen({super.key});
+class OnboardingWrapper extends StatefulWidget {
+  const OnboardingWrapper({super.key});
+
+  @override
+  State<OnboardingWrapper> createState() => _OnboardingWrapperState();
+}
+
+class _OnboardingWrapperState extends State<OnboardingWrapper> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  final List<Map<String, String>> _pages = [
+    {
+      'title': 'Kirim & Antar Teman',
+      'desc': 'Solusi mobilitas seru dan hemat khusus buat pejuang kampus.',
+      'image': 'assets/images/onboarding_1.png',
+      'icon': 'scooter',
+    },
+    {
+      'title': 'Lacak Perjalananmu',
+      'desc': 'Pantau posisi pengemudi secara real-time, aman sampai tujuan.',
+      'image': 'assets/images/onboarding_2.png',
+      'icon': 'map',
+    },
+    {
+      'title': 'Bayar Mudah & Hemat',
+      'desc': 'Tarif transparan khusus mahasiswa, bayar cashless tanpa ribet.',
+      'image': 'assets/images/onboarding_3.png',
+      'icon': 'wallet',
+    },
+  ];
+
+  bool get _isLastPage => _currentPage == _pages.length - 1;
+
+  void _skip() {
+    if (!_isLastPage) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _onPrimaryTap() {
+    if (!_isLastPage) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _goToLogin();
+    }
+  }
+
+  void _goToLogin() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  void _goToRegister() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+      (route) => false,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,8 +88,6 @@ class OnboardingScreen extends StatelessWidget {
     final Color bgColor = isDark ? kBackgroundDark : kBackgroundLight;
     final Color textPrimary =
         isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final Color textSecondary =
-        isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
     final Color dotInactive =
         isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
     final Color secondaryBtnBg =
@@ -27,28 +98,86 @@ class OnboardingScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            // Mirip max-w-md di HTML
             constraints: const BoxConstraints(maxWidth: 448),
             child: Column(
               children: [
-                // ── Top Navigation (Skip Button) ───────────────────────────
-                _buildTopNav(isDark),
-
-                // ── Hero Illustration ──────────────────────────────────────
-                _buildHeroIllustration(isDark),
-
-                // ── Content Section ────────────────────────────────────────
-                Expanded(
-                  child: _buildContentSection(
-                    isDark: isDark,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                    dotInactive: dotInactive,
-                    secondaryBtnBg: secondaryBtnBg,
+                // ── Top Nav ─────────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (!_isLastPage)
+                        _SkipButton(isDark: isDark, onSkip: _skip),
+                    ],
                   ),
                 ),
 
-                // Safe area spacer
+                // ── PageView (gambar + teks) ──────────────────────────────
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) =>
+                        setState(() => _currentPage = index),
+                    itemCount: _pages.length,
+                    itemBuilder: (context, index) => _OnboardingPage(
+                      data: _pages[index],
+                      isDark: isDark,
+                    ),
+                  ),
+                ),
+
+                // ── Bottom Section ───────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                  child: Column(
+                    children: [
+                      // Dots
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(_pages.length, (index) {
+                          final bool isActive = _currentPage == index;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 5),
+                            height: 10,
+                            width: isActive ? 32 : 10,
+                            decoration: BoxDecoration(
+                              color: isActive ? kPrimary : dotInactive,
+                              borderRadius: BorderRadius.circular(99),
+                              boxShadow: isActive
+                                  ? [
+                                      BoxShadow(
+                                        color: kPrimary.withOpacity(0.40),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Tombol Utama
+                      _PrimaryButton(
+                        onTap: _onPrimaryTap,
+                        isLast: _isLastPage,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tombol Sekunder
+                      _SecondaryButton(
+                        isDark: isDark,
+                        bgColor: secondaryBtnBg,
+                        textColor: textPrimary,
+                        onTap: _goToRegister,
+                      ),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 8),
               ],
             ),
@@ -57,134 +186,85 @@ class OnboardingScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Top Navigation — Tombol Skip
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildTopNav(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _SkipButton(isDark: isDark),
-        ],
-      ),
-    );
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget: Satu Halaman Onboarding
+// ─────────────────────────────────────────────────────────────────────────────
+class _OnboardingPage extends StatelessWidget {
+  final Map<String, String> data;
+  final bool isDark;
+
+  const _OnboardingPage({required this.data, required this.isDark});
+
+  IconData get _fallbackIcon {
+    switch (data['icon']) {
+      case 'map':
+        return Icons.map_rounded;
+      case 'wallet':
+        return Icons.wallet_rounded;
+      default:
+        return Icons.electric_scooter_rounded;
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Hero Illustration
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildHeroIllustration(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          height: 320,
-          decoration: BoxDecoration(
-            color: isDark
-                ? kPrimary.withOpacity(0.05)
-                : kPrimary.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Stack(
-            children: [
-              // Dekorasi lingkaran blur kanan atas
-              Positioned(
-                top: 30,
-                right: 30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kPrimary.withOpacity(0.20),
-                  ),
-                ),
-              ),
-              // Dekorasi lingkaran blur kiri bawah
-              Positioned(
-                bottom: 30,
-                left: 30,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kPrimary.withOpacity(0.30),
-                  ),
-                ),
-              ),
-              // Gambar utama
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Image.network(
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuCB1mF0lGLm6lgd5GY_uX7HZNcqGn5FrZa5rnIsPjPFFxhWw_7MDfs9OfT70PQ6uJCQ-vpRIInHcQzmcbIIDlip7dN1nSKJXaTj7DohROMxT1Xz7-nXGhUUUc6dLJtpb66D3aHal77Jzr-j-Q7QgWUQT9nf5de-MxM3NElTHI85ZrynMTDD-FJdxSoGlLytMq3kvjUKwDsp-CSRDqTR9oUZ7qqLFC--hPukDZKR3xJ0YcxGhCBbcAXOAVXwqvUa8HYbs-wNMrtsK0g',
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stack) {
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.electric_scooter_rounded,
-                            size: 100,
-                            color: kPrimary.withOpacity(0.7),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'GasKampus',
-                            style: TextStyle(
-                              color: kPrimary,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: kPrimary,
-                          value: progress.expectedTotalBytes != null
-                              ? progress.cumulativeBytesLoaded /
-                                  progress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final Color textPrimary =
+        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final Color textSecondary =
+        isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Content Section
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildContentSection({
-    required bool isDark,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color dotInactive,
-    required Color secondaryBtnBg,
-  }) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Judul
+          // ── Gambar ───────────────────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            height: 400,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? kPrimary.withOpacity(0.05)
+                  : kPrimary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Image.asset(
+                data['image']!,
+                fit: BoxFit.contain,
+                errorBuilder: (context, _, __) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _fallbackIcon,
+                        size: 100,
+                        color: kPrimary.withOpacity(0.7),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'GasKampus',
+                        style: TextStyle(
+                          color: kPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ── Judul ─────────────────────────────────────────────────────────
           Text(
-            'Kirim & Antar Teman',
+            data['title']!,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: textPrimary,
@@ -194,13 +274,14 @@ class OnboardingScreen extends StatelessWidget {
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 16),
 
-          // Deskripsi
+          const SizedBox(height: 14),
+
+          // ── Deskripsi ─────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Solusi mobilitas seru dan hemat khusus buat pejuang kampus.',
+              data['desc']!,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textSecondary,
@@ -209,69 +290,6 @@ class OnboardingScreen extends StatelessWidget {
                 height: 1.6,
               ),
             ),
-          ),
-
-          // Pagination Dots
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Dot aktif (lebih lebar)
-                Container(
-                  width: 32,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: kPrimary,
-                    borderRadius: BorderRadius.circular(99),
-                    boxShadow: [
-                      BoxShadow(
-                        color: kPrimary.withOpacity(0.40),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Dot tidak aktif 1
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: dotInactive,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Dot tidak aktif 2
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: dotInactive,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // ── Action Buttons ───────────────────────────────────────────
-          Column(
-            children: [
-              // Tombol Utama — Login
-              _PrimaryButton(isDark: isDark),
-              const SizedBox(height: 16),
-              // Tombol Sekunder — Daftar
-              _SecondaryButton(
-                isDark: isDark,
-                bgColor: secondaryBtnBg,
-                textColor: textPrimary,
-              ),
-            ],
           ),
         ],
       ),
@@ -282,26 +300,23 @@ class OnboardingScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Widget: Skip Button
 // ─────────────────────────────────────────────────────────────────────────────
-class _SkipButton extends StatefulWidget {
+class _SkipButton extends StatelessWidget {
   final bool isDark;
-  const _SkipButton({required this.isDark});
+  final VoidCallback onSkip;
 
-  @override
-  State<_SkipButton> createState() => _SkipButtonState();
-}
+  const _SkipButton({required this.isDark, required this.onSkip});
 
-class _SkipButtonState extends State<_SkipButton> {
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(99),
-        onTap: () {},
+        onTap: onSkip,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: widget.isDark
+            color: isDark
                 ? Colors.white.withOpacity(0.08)
                 : Colors.black.withOpacity(0.06),
             borderRadius: BorderRadius.circular(99),
@@ -309,9 +324,8 @@ class _SkipButtonState extends State<_SkipButton> {
           child: Text(
             'Skip',
             style: TextStyle(
-              color: widget.isDark
-                  ? const Color(0xFFF1F5F9)
-                  : const Color(0xFF0F172A),
+              color:
+                  isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
               fontSize: 14,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
@@ -324,11 +338,13 @@ class _SkipButtonState extends State<_SkipButton> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Widget: Primary Button (Login)
+// Widget: Primary Button — scale animation
 // ─────────────────────────────────────────────────────────────────────────────
 class _PrimaryButton extends StatefulWidget {
-  final bool isDark;
-  const _PrimaryButton({required this.isDark});
+  final VoidCallback onTap;
+  final bool isLast;
+
+  const _PrimaryButton({required this.onTap, required this.isLast});
 
   @override
   State<_PrimaryButton> createState() => _PrimaryButtonState();
@@ -363,15 +379,15 @@ class _PrimaryButtonState extends State<_PrimaryButton>
   Widget build(BuildContext context) {
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) => _controller.reverse(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onTap();
+      },
       onTapCancel: () => _controller.reverse(),
-      onTap: () {},
       child: AnimatedBuilder(
         animation: _scale,
-        builder: (context, child) => Transform.scale(
-          scale: _scale.value,
-          child: child,
-        ),
+        builder: (context, child) =>
+            Transform.scale(scale: _scale.value, child: child),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 18),
@@ -389,15 +405,19 @@ class _PrimaryButtonState extends State<_PrimaryButton>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.school_rounded,
-                color: Color(0xFF0F172A),
+              Icon(
+                widget.isLast
+                    ? Icons.check_circle_rounded
+                    : Icons.school_rounded,
+                color: const Color(0xFF0F172A),
                 size: 24,
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Masuk dengan Nomor Mahasiswa',
-                style: TextStyle(
+              Text(
+                widget.isLast
+                    ? 'Mulai Sekarang'
+                    : 'Masuk dengan Nomor Mahasiswa',
+                style: const TextStyle(
                   color: Color(0xFF0F172A),
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -412,17 +432,19 @@ class _PrimaryButtonState extends State<_PrimaryButton>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Widget: Secondary Button (Daftar)
+// Widget: Secondary Button — Daftar
 // ─────────────────────────────────────────────────────────────────────────────
 class _SecondaryButton extends StatelessWidget {
   final bool isDark;
   final Color bgColor;
   final Color textColor;
+  final VoidCallback onTap;
 
   const _SecondaryButton({
     required this.isDark,
     required this.bgColor,
     required this.textColor,
+    required this.onTap,
   });
 
   @override
@@ -431,7 +453,7 @@ class _SecondaryButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(99),
-        onTap: () {},
+        onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: double.infinity,
@@ -453,4 +475,21 @@ class _SecondaryButton extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Placeholder — hapus & ganti dengan screen asli kamu
+// ─────────────────────────────────────────────────────────────────────────────
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Login Screen')));
+}
+
+class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Register Screen')));
 }
