@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../login_screen.dart';
+import 'topup_modal.dart';
+import 'favorite_drivers_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const Color kPrimary       = Color(0xFFC0F637);
@@ -14,7 +17,8 @@ TextStyle _body(Color c, double sz, FontWeight w, {double? ls, double? h}) =>
     TextStyle(color: c, fontSize: sz, fontWeight: w, letterSpacing: ls, height: h);
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  final VoidCallback? onNavigateToPromo;
+  const ProfileScreen({super.key, this.onNavigateToPromo});
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +47,10 @@ class ProfileScreen extends StatelessWidget {
           SliverToBoxAdapter(child: _buildStatsGrid(tp, ts)),
           
           // ── 4. Menu List ──
-          SliverToBoxAdapter(child: _buildMenuList(tp, ts, cardBg, cardHover, border)),
+          SliverToBoxAdapter(child: _buildMenuList(context, tp, ts, cardBg, cardHover, border)),
           
           // ── 5. Logout Button ──
-          SliverToBoxAdapter(child: _buildLogoutButton(isDark)),
+          SliverToBoxAdapter(child: _buildLogoutButton(context, isDark)),
           
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
@@ -175,25 +179,31 @@ class ProfileScreen extends StatelessWidget {
   }
 
   // 4. Menu List
-  Widget _buildMenuList(Color tp, Color ts, Color bg, Color hover, Color border) {
+  Widget _buildMenuList(BuildContext context, Color tp, Color ts, Color bg, Color hover, Color border) {
     final menus = [
       {
         'icon': Icons.account_balance_wallet_rounded,
         'title': 'Dompet & Top Up',
         'subtitle': 'Saldo: Rp 75.000',
         'badge': null,
+        'onTap': () => showTopUpModal(context),
       },
       {
         'icon': Icons.confirmation_number_rounded,
         'title': 'Voucher Saya',
         'subtitle': null,
         'badge': '3',
+        'onTap': onNavigateToPromo,
       },
       {
         'icon': Icons.favorite_rounded,
         'title': 'Driver Favorit',
         'subtitle': null,
         'badge': null,
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const FavoriteDriversScreen()),
+        ),
       },
       {
         'icon': Icons.help_center_rounded,
@@ -229,7 +239,7 @@ class ProfileScreen extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {},
+          onTap: item['onTap'] as VoidCallback? ?? () {},
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Row(
@@ -283,14 +293,20 @@ class ProfileScreen extends StatelessWidget {
   }
 
   // 5. Logout Button
-  Widget _buildLogoutButton(bool isDark) {
+  Widget _buildLogoutButton(BuildContext context, bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {},
+          onTap: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+              (route) => false,
+            );
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(

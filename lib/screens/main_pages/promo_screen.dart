@@ -194,9 +194,9 @@ class PromoScreen extends StatelessWidget {
   // 5. Vouchers List
   Widget _buildVouchers(Color tp, Color ts, Color card, Color border, Color bg) {
     final vouchers = [
-      {'title': 'Diskon Makan 50%', 'desc': 'Min. belanja Rp20rb di GoFood', 'date': 'Hingga 24 Okt 2023', 'icon': Icons.restaurant_rounded, 'color': kPrimary, 'op': 1.0},
-      {'title': 'Gratis Ongkir Antar Teman', 'desc': 'Khusus pengiriman area Kampus', 'date': 'Hingga 30 Okt 2023', 'icon': Icons.motorcycle_rounded, 'color': kPrimary.withOpacity(0.3), 'op': 1.0},
-      {'title': 'Potongan GoRide Rp5rb', 'desc': 'Berlaku rute ke Fakultas', 'date': 'Hingga 22 Okt 2023', 'icon': Icons.pedal_bike_rounded, 'color': Colors.grey.withOpacity(0.2), 'op': 0.6},
+      {'title': 'Diskon Makan 50%', 'desc': 'Min. belanja Rp20rb di GoFood', 'date': 'Hingga 24 Okt 2023', 'icon': Icons.restaurant_rounded, 'color': Colors.transparent, 'op': 1.0},
+      {'title': 'Gratis Ongkir Antar Teman', 'desc': 'Khusus pengiriman area Kampus', 'date': 'Hingga 30 Okt 2023', 'icon': Icons.motorcycle_rounded, 'color': Colors.transparent, 'op': 1.0},
+      {'title': 'Potongan GoRide Rp5rb', 'desc': 'Berlaku rute ke Fakultas', 'date': 'Hingga 22 Okt 2023', 'icon': Icons.pedal_bike_rounded, 'color': Colors.transparent, 'op': 0.6},
     ];
 
     return Padding(

@@ -4,6 +4,7 @@ import 'promo_screen.dart';
 import 'pesanan_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
+import 'topup_modal.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const Color kPrimary       = Color(0xFFC0F637);
@@ -86,7 +87,15 @@ class _HomeScreenState extends State<HomeScreen>
     if (_navIndex == 1) return const PromoScreen();
     if (_navIndex == 2) return const PesananScreen();
     if (_navIndex == 3) return const ChatScreen();
-    if (_navIndex == 4) return const ProfileScreen();
+    if (_navIndex == 4) {
+      return ProfileScreen(
+        onNavigateToPromo: () {
+          setState(() {
+            _navIndex = 1;
+          });
+        },
+      );
+    }
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -214,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               const Spacer(),
-              _buildWalletAction(Icons.add_rounded),
+              _buildWalletAction(Icons.add_rounded, onTap: () => showTopUpModal(context)),
               const SizedBox(width: 8),
               _buildWalletAction(Icons.history_rounded),
             ],
@@ -262,14 +271,17 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildWalletAction(IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: kTextOnPrimary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
+  Widget _buildWalletAction(IconData icon, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: kTextOnPrimary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: kTextOnPrimary, size: 17),
       ),
-      child: Icon(icon, color: kTextOnPrimary, size: 17),
     );
   }
 
