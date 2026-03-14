@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'register_screen.dart';
+import 'login_screen.dart';
 
 // ─── Warna Tema ───────────────────────────────────────────────────────────────
 const Color kPrimary = Color(0xFFC0F637);
@@ -39,6 +41,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
 
   bool get _isLastPage => _currentPage == _pages.length - 1;
 
+  // Skip → next page
   void _skip() {
     if (!_isLastPage) {
       _pageController.nextPage(
@@ -48,30 +51,24 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
     }
   }
 
+  // Tombol utama → SELALU langsung ke Login
   void _onPrimaryTap() {
-    if (!_isLastPage) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      _goToLogin();
-    }
+    _goToLogin();
   }
 
+  // Navigasi ke LoginScreen
   void _goToLogin() {
-    Navigator.pushAndRemoveUntil(
+    Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
     );
   }
 
+  // Navigasi ke RegisterScreen
   void _goToRegister() {
-    Navigator.pushAndRemoveUntil(
+    Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const RegisterScreen()),
-      (route) => false,
     );
   }
 
@@ -101,7 +98,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
             constraints: const BoxConstraints(maxWidth: 448),
             child: Column(
               children: [
-                // ── Top Nav ─────────────────────────────────────────────────
+                // ── Top Nav — Skip hanya muncul bukan di halaman terakhir ──
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
                   child: Row(
@@ -113,7 +110,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                   ),
                 ),
 
-                // ── PageView (gambar + teks) ──────────────────────────────
+                // ── PageView ─────────────────────────────────────────────────
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
@@ -127,12 +124,12 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                   ),
                 ),
 
-                // ── Bottom Section ───────────────────────────────────────
+                // ── Bottom Section ────────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
                   child: Column(
                     children: [
-                      // Dots
+                      // Pagination Dots
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(_pages.length, (index) {
@@ -158,16 +155,15 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                           );
                         }),
                       ),
+
                       const SizedBox(height: 28),
 
-                      // Tombol Utama
-                      _PrimaryButton(
-                        onTap: _onPrimaryTap,
-                        isLast: _isLastPage,
-                      ),
+                      // Tombol Utama — Masuk dengan Nomor Mahasiswa
+                      _PrimaryButton(onTap: _onPrimaryTap),
+
                       const SizedBox(height: 16),
 
-                      // Tombol Sekunder
+                      // Tombol Sekunder — Daftar
                       _SecondaryButton(
                         isDark: isDark,
                         bgColor: secondaryBtnBg,
@@ -338,13 +334,12 @@ class _SkipButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Widget: Primary Button — scale animation
+// Widget: Primary Button — dengan scale animation
 // ─────────────────────────────────────────────────────────────────────────────
 class _PrimaryButton extends StatefulWidget {
   final VoidCallback onTap;
-  final bool isLast;
 
-  const _PrimaryButton({required this.onTap, required this.isLast});
+  const _PrimaryButton({required this.onTap});
 
   @override
   State<_PrimaryButton> createState() => _PrimaryButtonState();
@@ -402,22 +397,18 @@ class _PrimaryButtonState extends State<_PrimaryButton>
               ),
             ],
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                widget.isLast
-                    ? Icons.check_circle_rounded
-                    : Icons.school_rounded,
-                color: const Color(0xFF0F172A),
+                Icons.school_rounded,
+                color: Color(0xFF0F172A),
                 size: 24,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Text(
-                widget.isLast
-                    ? 'Mulai Sekarang'
-                    : 'Masuk dengan Nomor Mahasiswa',
-                style: const TextStyle(
+                'Masuk dengan Nomor Mahasiswa',
+                style: TextStyle(
                   color: Color(0xFF0F172A),
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -475,21 +466,4 @@ class _SecondaryButton extends StatelessWidget {
       ),
     );
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Placeholder — hapus & ganti dengan screen asli kamu
-// ─────────────────────────────────────────────────────────────────────────────
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Login Screen')));
-}
-
-class RegisterScreen extends StatelessWidget {
-  const RegisterScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Register Screen')));
 }
