@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'register_screen.dart';
 import 'main_pages/home_screen.dart';
+import 'driver_pages/driver_home_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -15,6 +16,15 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         _buildLabel('NIM / Username / No. Telepon', textPrimary),
                         const SizedBox(height: 8),
                         _buildInputField(
+                          controller: _usernameController,
                           hintText: 'Contoh: 12345678',
                           inputBg: inputBg,
                           borderColor: borderColor,
@@ -80,6 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         _buildLabel('Password', textPrimary),
                         const SizedBox(height: 8),
                         _buildPasswordField(
+                          controller: _passwordController,
                           hintText: '••••••••',
                           inputBg: inputBg,
                           borderColor: borderColor,
@@ -212,6 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildInputField({
+    required TextEditingController controller,
     required String hintText,
     required Color inputBg,
     required Color borderColor,
@@ -226,6 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
         border: Border.all(color: borderColor),
       ),
       child: TextField(
+        controller: controller,
         style: TextStyle(color: textPrimary, fontSize: 16),
         decoration: InputDecoration(
           hintText: hintText,
@@ -237,6 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildPasswordField({
+    required TextEditingController controller,
     required String hintText,
     required Color inputBg,
     required Color borderColor,
@@ -254,6 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Expanded(
             child: TextField(
+              controller: controller,
               obscureText: _obscurePassword,
               style: TextStyle(color: textPrimary, fontSize: 16),
               decoration: InputDecoration(
@@ -279,12 +295,29 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildPrimaryButton() {
     return InkWell(
       onTap: () {
-        // Navigasi ke HomeScreen dan hapus semua rute sebelumnya agar tidak bisa "back" ke login
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
-        );
+        final username = _usernameController.text.trim();
+        final password = _passwordController.text.trim();
+
+        if (username == 'mahasiswa' && password == 'mahasiswa') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            (route) => false,
+          );
+        } else if (username == 'driverm' && password == 'driverm') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const DriverHomeScreen()),
+            (route) => false,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Username atau Password salah!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
