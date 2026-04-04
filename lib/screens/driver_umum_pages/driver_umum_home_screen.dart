@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'orders/driver_orders_screen.dart';
-import 'driver_jadwal_screen.dart';
-import 'driver_profile_screen.dart';
-import 'orders/driver_navigation_screen.dart';
+import 'orders/driver_umum_orders_screen.dart';
+import 'driver_umum_profile_screen.dart';
+import 'orders/driver_umum_navigation_screen.dart';
 import '../notifications_screen.dart';
 import '../wallet_screen.dart';
 
@@ -11,14 +10,14 @@ const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
 const Color kBackgroundDark = Color(0xFF1D2210);
 
-class DriverHomeScreen extends StatefulWidget {
-  const DriverHomeScreen({super.key});
+class DriverUmumHomeScreen extends StatefulWidget {
+  const DriverUmumHomeScreen({super.key});
 
   @override
-  State<DriverHomeScreen> createState() => _DriverHomeScreenState();
+  State<DriverUmumHomeScreen> createState() => _DriverUmumHomeScreenState();
 }
 
-class _DriverHomeScreenState extends State<DriverHomeScreen> {
+class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   bool _isWorking = true;
   int _navIndex = 0;
   bool _isLeaderboardExpanded = false;
@@ -36,54 +35,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       backgroundColor: bgColor,
       body: _buildBodyContent(isDark),
       bottomNavigationBar: _buildBottomNav(isDark),
-      floatingActionButton: _navIndex == 0 ? Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kPrimary, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: InkWell(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(14),
-          child: const Center(
-            child: Icon(Icons.map_rounded, color: kPrimary, size: 28),
-          ),
-        ),
-      ) : null,
+      floatingActionButton: null,
     );
   }
 
   Widget _buildBodyContent(bool isDark) {
     if (_navIndex == 1) {
-      return DriverOrdersScreen(
+      return DriverUmumOrdersScreen(
         onBack: () => setState(() => _navIndex = 0),
       );
     }
     
     if (_navIndex == 2) {
-      return DriverJadwalScreen(
-        onBack: () => setState(() => _navIndex = 0),
-      );
-    }
-    
-    if (_navIndex == 3) {
       return WalletScreen(
         onBack: () => setState(() => _navIndex = 0),
       );
     }
     
-    if (_navIndex == 4) {
-      return DriverProfileScreen(
+    if (_navIndex == 3) {
+      return DriverUmumProfileScreen(
         onBack: () => setState(() => _navIndex = 0),
       );
     }
@@ -98,7 +68,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             _buildHeader(isDark),
             if (_isLeaderboardExpanded) _buildLeaderboardSection(isDark),
             _buildEarningsCard(isDark),
-            _buildScheduleCard(isDark),
             _buildOrdersSection(isDark),
           ],
         ),
@@ -132,7 +101,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           border: Border.all(color: kPrimary, width: 2),
                           image: const DecorationImage(
                             image: NetworkImage(
-                                "https://lh3.googleusercontent.com/aida-public/AB6AXuCG2i9AkeW-dn9okRtc2D_Rdt1V-fdAq8zQbuiLWIvUBip32p7E9xalTEwQ02aZ_kZXdUTocpM8F2shgZfR6aAz5CNfrecgHiBzPP2rASaBxZaPiJaARmiuY7yGwwtQY1_jUXwHFGYae8ccX1RF_qg5Al6m_PWQ2fDZRSWwVFnJYe70DPm4A2yPzcOiKCqZ71WYvC_BOF_uU0UHw_MwLwGQ1hglz8_PAMu6gBgo4NPy_RP0jKG3a6f4vLjVe-We4HRn2cQKTiJSr-o"),
+                                "https://images.unsplash.com/photo-1543132220-3ce99c5ae93b?auto=format&fit=crop&q=80&w=200"),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -158,7 +127,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     children: [
                       Row(
                         children: [
-                          Text('Budi Santoso',
+                          Text('Rizky Pratama',
                               style: TextStyle(color: textColorPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
                           Container(
@@ -168,7 +137,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Text(
-                              'STUDENT DRIVER',
+                              'GENERAL DRIVER',
                               style: TextStyle(
                                   color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                             ),
@@ -180,7 +149,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         children: [
                           Icon(Icons.location_on, size: 14, color: textColorSecondary),
                           const SizedBox(width: 4),
-                          Text('FMIPA - Universitas Indonesia',
+                          Text('Depok, Jawa Barat',
                               style: TextStyle(color: textColorSecondary, fontSize: 12)),
                         ],
                       ),
@@ -268,7 +237,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 2),
                         Text(
-                          _isWorking ? 'Mode: Siap Narik' : 'Mode: Istirahat',
+                          _isWorking ? 'Mode: Aktif' : 'Mode: Istirahat',
                           style: TextStyle(
                             color: _isWorking ? kPrimary : textColorPrimary,
                             fontSize: 14,
@@ -299,7 +268,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   Widget _buildEarningsCard(bool isDark) {
     return GestureDetector(
-      onTap: () => setState(() => _navIndex = 3), // Navigasi ke tab Dompet
+      onTap: () => setState(() => _navIndex = 2), // Navigasi ke tab Dompet
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: Container(
@@ -349,7 +318,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '125.500',
+                        '85.000',
                         style: TextStyle(
                           color: kPrimary,
                           fontSize: 32,
@@ -371,7 +340,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           children: [
                             const Icon(Icons.trending_up, color: kPrimary, size: 14),
                             const SizedBox(width: 4),
-                            const Text('+12% vs Kemarin',
+                            const Text('+15% vs Sebelumnya',
                                 style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
@@ -387,7 +356,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           children: [
                             const Icon(Icons.moped, color: kPrimary, size: 14),
                             const SizedBox(width: 4),
-                            const Text('8 Trip',
+                            const Text('5 Terkirim',
                                 style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
@@ -403,97 +372,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  Widget _buildScheduleCard(bool isDark) {
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334110) : const Color(0xFFE2E8F0);
-    final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.auto_stories, color: kPrimary, size: 20),
-                  const SizedBox(width: 8),
-                  Text('Jadwal Kuliah Hari Ini',
-                      style: TextStyle(color: textColorPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF334155) : kBackgroundLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('NEXT', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
-                      Text('10:00',
-                          style: TextStyle(color: textColorPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Kalkulus II',
-                          style: TextStyle(color: textColorPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(Icons.apartment, size: 14, color: Colors.grey),
-                              SizedBox(width: 4),
-                              Text('Gedung C, R.302', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Row(
-                            children: const [
-                              Icon(Icons.timer, size: 14, color: Colors.orange),
-                              SizedBox(width: 4),
-                              Text('Mulai dlm 45m',
-                                  style: TextStyle(
-                                      color: Colors.orange, fontSize: 12, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                )
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
   Widget _buildOrdersSection(bool isDark) {
     final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -501,7 +384,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             children: [
               const Icon(Icons.near_me, color: kPrimary, size: 20),
               const SizedBox(width: 8),
-              Text('Order Mahasiswa Terdekat',
+              Text('Order Publik Terdekat',
                   style: TextStyle(color: textColorPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
@@ -509,20 +392,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _buildOrderCard(
             isDark: isDark,
             name: 'Andi Pratama',
-            desc: 'FEB Student • ⭐ 4.9',
+            desc: 'Regular Customer • ⭐ 4.9',
             price: 'Rp 12.000',
-            from: 'Gedung Perpustakaan Pusat',
-            to: 'Fakultas Teknik - Gerbatama',
+            from: 'Stasiun Depok Baru',
+            to: 'Margonda Residence',
             isPrimary: true,
           ),
           const SizedBox(height: 16),
           _buildOrderCard(
             isDark: isDark,
             name: 'Siti Aisyah',
-            desc: 'FIB Student • ⭐ 5.0',
-            price: 'Rp 15.500',
-            from: 'Kantin Sastra',
-            to: 'Stasiun UI',
+            desc: 'Regular Customer • ⭐ 5.0',
+            price: 'Rp 18.500',
+            from: 'Margo City Mall',
+            to: 'Pesona Square',
             isPrimary: false,
           ),
         ],
@@ -646,7 +529,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const DriverNavigationScreen()),
+                    MaterialPageRoute(builder: (context) => const DriverUmumNavigationScreen()),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -669,7 +552,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildLeaderboardSection(bool isDark) {
-    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9); 
+    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9); // Lighter background for dropdown effect
     final borderColor = isDark ? const Color(0xFF334110) : const Color(0xFFE2E8F0);
     final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
 
@@ -693,7 +576,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  'Leaderboard Driver Mahasiswa',
+                  'Leaderboard Driver Umum',
                   style: TextStyle(
                     color: textColorPrimary,
                     fontSize: 12,
@@ -703,11 +586,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            _buildLeaderboardItem(1, 'Rizky Pratama', 'Rp 1.150.000', isDark, false),
+            _buildLeaderboardItem(1, 'Rizky Pratama', 'Rp 1.250.000', isDark, true),
             const Divider(height: 12),
-            _buildLeaderboardItem(2, 'Budi Santoso', 'Rp 1.100.000', isDark, true),
+            _buildLeaderboardItem(2, 'Andi Wijaya', 'Rp 1.100.000', isDark, false),
             const Divider(height: 12),
-            _buildLeaderboardItem(3, 'Andi Wijaya', 'Rp 980.000', isDark, false),
+            _buildLeaderboardItem(3, 'Budi Santoso', 'Rp 950.000', isDark, false),
           ],
         ),
       ),
@@ -767,9 +650,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           children: [
             _buildNavItem(Icons.grid_view_rounded, 'Home', 0, isDark, _navIndex == 0),
             _buildNavItem(Icons.moped, 'Orders', 1, isDark, _navIndex == 1),
-            _buildNavItem(Icons.calendar_today, 'Jadwal', 2, isDark, _navIndex == 2),
-            _buildNavItem(Icons.account_balance_wallet, 'Dompet', 3, isDark, _navIndex == 3),
-            _buildNavItem(Icons.person_outline, 'Profil', 4, isDark, _navIndex == 4),
+            _buildNavItem(Icons.account_balance_wallet, 'Dompet', 2, isDark, _navIndex == 2),
+            _buildNavItem(Icons.person_outline, 'Profil', 3, isDark, _navIndex == 3),
           ],
         ),
       ),

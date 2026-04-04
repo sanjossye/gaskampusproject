@@ -4,10 +4,10 @@ import '../notifications_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 
-class DriverProfileScreen extends StatelessWidget {
+class DriverUmumProfileScreen extends StatelessWidget {
   final VoidCallback onBack;
 
-  const DriverProfileScreen({super.key, required this.onBack});
+  const DriverUmumProfileScreen({super.key, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +44,7 @@ class DriverProfileScreen extends StatelessWidget {
                   ),
                   Expanded(
                     child: Text(
-                      'Profil Driver',
+                      'Profil Driver Umum',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: textColor,
@@ -86,7 +86,7 @@ class DriverProfileScreen extends StatelessWidget {
                                     border: Border.all(color: isDark ? const Color(0xFF1D2210) : Colors.white, width: 4),
                                     image: const DecorationImage(
                                       image: NetworkImage(
-                                          "https://lh3.googleusercontent.com/aida-public/AB6AXuC1qY-oQKNzPMbEBWLqkDwamL_U7DqX_JmNnXrXf1GNWGR7wxWLIK6WZLEk7OTltAZHnndXUcGatEln4e6GJTRCM18XJ9kjYxlxXvuBU62r7zZsiWgshS8zvQXb2fwqSILtYw0ZqtxVWEKgliPiRrAAJmWCbmP5_pqCT6dgl2sLH2VfFd3aGJJG7EngniKOhLmsOfOoRd-9ynWjRWqeFZaqbgiE9jJPNv5f1o9q3emvgTSM87AAkCYygzFTgNdB1N5un08i9RfGxCA"),
+                                          "https://images.unsplash.com/photo-1543132220-3ce99c5ae93b?auto=format&fit=crop&q=80&w=200"),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -120,7 +120,7 @@ class DriverProfileScreen extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Budi Santoso',
+                                'Rizky Pratama',
                                 style: TextStyle(
                                   color: textColor,
                                   fontSize: 24,
@@ -142,12 +142,12 @@ class DriverProfileScreen extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.school, color: Colors.green[800], size: 14),
+                                Icon(Icons.motorcycle, color: Colors.blue[800], size: 14),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'STUDENT DRIVER',
+                                  'GENERAL DRIVER',
                                   style: TextStyle(
-                                    color: Colors.green[800],
+                                    color: Colors.blue[800],
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1,
@@ -158,7 +158,7 @@ class DriverProfileScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'NIM: 12345678',
+                            'Mitra Sejak: Oktober 2023',
                             style: TextStyle(
                               color: textMutedColor,
                               fontSize: 14,
@@ -167,7 +167,7 @@ class DriverProfileScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Fakultas Matematika dan IPA (FMIPA)',
+                            'Area Operasional: Depok & Sekitarnya',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: textMutedColor,
@@ -186,7 +186,7 @@ class DriverProfileScreen extends StatelessWidget {
                           Expanded(
                             child: _buildStatCard(
                               title: 'Trips',
-                              value: '142',
+                              value: '256',
                               isDark: isDark,
                               textColor: textColor,
                               textMutedColor: textMutedColor,
@@ -198,7 +198,7 @@ class DriverProfileScreen extends StatelessWidget {
                           Expanded(
                             child: _buildStatCard(
                               title: 'Rating',
-                              value: '4.9',
+                              value: '4.8',
                               icon: Icons.star,
                               iconColor: Colors.orange,
                               isDark: isDark,
@@ -211,8 +211,8 @@ class DriverProfileScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              title: 'Member',
-                              value: 'Oct 2023',
+                              title: 'Level',
+                              value: 'Pro',
                               isDark: isDark,
                               textColor: textColor,
                               textMutedColor: textMutedColor,
@@ -275,14 +275,14 @@ class DriverProfileScreen extends StatelessWidget {
                           _buildMenuItem(
                             icon: Icons.description_outlined,
                             title: 'Dokumen Kendaraan',
-                            subtitle: 'KTM, SIM, STNK',
+                            subtitle: 'SIM, STNK, SKCK',
                             isDark: isDark,
                             textColor: textColor,
                             textMutedColor: textMutedColor,
                           ),
                           _buildMenuItem(
                             icon: Icons.bar_chart,
-                            title: 'Riwayat Performa',
+                            title: 'Riwayat Pendapatan',
                             isDark: isDark,
                             textColor: textColor,
                             textMutedColor: textMutedColor,

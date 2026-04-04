@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'register_screen.dart';
 import 'main_pages/home_screen.dart';
 import 'driver_pages/driver_home_screen.dart';
+import 'admin_pages/admin_home_screen.dart';
+import 'driver_umum_pages/driver_umum_home_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -308,6 +310,18 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const DriverHomeScreen()),
+            (route) => false,
+          );
+        } else if (username == 'admin' && password == 'admin') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
+            (route) => false,
+          );
+        } else if (username == 'driveru' && password == 'driveru') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const DriverUmumHomeScreen()),
             (route) => false,
           );
         } else {
