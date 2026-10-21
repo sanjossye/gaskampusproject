@@ -333,8 +333,6 @@ class _DriverUmumTripCompleteScreenState extends State<DriverUmumTripCompleteScr
                       ),
                       Row(
                         children: [
-                          _buildSubtleNavButton(icon: Icons.chat),
-                          const SizedBox(width: 8),
                           _buildSubtleNavButton(icon: Icons.call),
                         ],
                       ),

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'orders/driver_orders_screen.dart';
 import 'driver_jadwal_screen.dart';
 import 'driver_profile_screen.dart';
-import 'orders/driver_navigation_screen.dart';
 import '../notifications_screen.dart';
 import '../wallet_screen.dart';
 
@@ -22,6 +21,30 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _isWorking = true;
   int _navIndex = 0;
   bool _isLeaderboardExpanded = false;
+
+  // Modified: Using a non-final list initialized in initState
+  List<Map<String, dynamic>> _activeOrders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _activeOrders = [
+      {
+        'name': 'Andi Pratama',
+        'price': 'Rp 12.000',
+        'from': 'Gedung Perpustakaan Pusat',
+        'to': 'Fakultas Teknik - Gerbatama',
+        'isPrimary': true,
+      },
+      {
+        'name': 'Siti Aisyah',
+        'price': 'Rp 15.500',
+        'from': 'Kantin Sastra',
+        'to': 'Stasiun UI',
+        'isPrimary': false,
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -490,6 +513,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildOrdersSection(bool isDark) {
+    if (_activeOrders.isEmpty) return const SizedBox.shrink(); // Hide section if no orders
+
     final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
 
     return Padding(
@@ -499,32 +524,33 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.near_me, color: kPrimary, size: 20),
+              const Icon(Icons.bolt, color: kPrimary, size: 20),
               const SizedBox(width: 8),
-              Text('Order Mahasiswa Terdekat',
+              Text('Order',
                   style: TextStyle(color: textColorPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-          _buildOrderCard(
-            isDark: isDark,
-            name: 'Andi Pratama',
-            desc: 'FEB Student • ⭐ 4.9',
-            price: 'Rp 12.000',
-            from: 'Gedung Perpustakaan Pusat',
-            to: 'Fakultas Teknik - Gerbatama',
-            isPrimary: true,
-          ),
-          const SizedBox(height: 16),
-          _buildOrderCard(
-            isDark: isDark,
-            name: 'Siti Aisyah',
-            desc: 'FIB Student • ⭐ 5.0',
-            price: 'Rp 15.500',
-            from: 'Kantin Sastra',
-            to: 'Stasiun UI',
-            isPrimary: false,
-          ),
+          ...List.generate(_activeOrders.length, (index) {
+            final order = _activeOrders[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildOrderCard(
+                isDark: isDark,
+                name: order['name'],
+                desc: 'Student Customer',
+                price: order['price'],
+                from: order['from'],
+                to: order['to'],
+                isPrimary: order['isPrimary'],
+                onDelete: () {
+                  setState(() {
+                    _activeOrders.removeAt(index);
+                  });
+                },
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -538,131 +564,91 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     required String from,
     required String to,
     required bool isPrimary,
+    required VoidCallback onDelete,
   }) {
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final borderColor = isDark ? const Color(0xFF334110) : const Color(0xFFE2E8F0);
     final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
 
-    return Opacity(
-      opacity: isPrimary ? 1.0 : 0.8,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: kPrimary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person, color: kPrimary, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF334155) : Colors.grey[100],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.person, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name,
-                            style: TextStyle(color: textColorPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
-                        Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                      ],
-                    ),
-                  ],
+                Text(
+                  name,
+                  style: TextStyle(color: textColorPrimary, fontSize: 15, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                Text(price, style: TextStyle(color: textColorPrimary, fontSize: 14, fontWeight: FontWeight.w900)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Stack(
-              children: [
-                Positioned(
-                  left: 7,
-                  top: 14,
-                  bottom: 14,
-                  child: Container(
-                    width: 2,
-                    color: isDark ? Colors.grey[700] : Colors.grey[200],
-                  ),
-                ),
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: kPrimary, width: 3),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(from,
-                            style: TextStyle(
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: kPrimary,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(to,
-                            style: TextStyle(
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                  ],
+                Text(
+                  price,
+                  style: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w900),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const DriverNavigationScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isPrimary ? kPrimary : (isDark ? const Color(0xFF334155) : Colors.grey[100]),
-                  foregroundColor: isPrimary ? Colors.black : Colors.grey[600],
-                  elevation: isPrimary ? 4 : 0,
-                  shadowColor: kPrimary.withOpacity(0.4),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Terima Order', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            )
-          ],
+          ),
+          const SizedBox(width: 8),
+          _buildActionCircle(
+            icon: Icons.remove_red_eye_rounded,
+            color: kPrimary,
+            onTap: () {
+              setState(() => _navIndex = 1); // Langsung ke orders
+            },
+            isDark: isDark,
+          ),
+          const SizedBox(width: 10),
+          _buildActionCircle(
+            icon: Icons.close_rounded,
+            color: Colors.redAccent,
+            onTap: onDelete,
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCircle({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon, 
+          color: color, 
+          size: icon == Icons.close_rounded ? 26 : 24, 
+          weight: 900,
         ),
       ),
     );

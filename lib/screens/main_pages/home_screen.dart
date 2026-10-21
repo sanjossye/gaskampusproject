@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart';
-import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'topup_modal.dart';
 
@@ -86,8 +85,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildBodyContent(Color tp, Color ts, bool isDark, Color border) {
     if (_navIndex == 1) return const PromoScreen();
     if (_navIndex == 2) return const PesananScreen();
-    if (_navIndex == 3) return const ChatScreen();
-    if (_navIndex == 4) {
+    if (_navIndex == 3) {
       return ProfileScreen(
         onNavigateToPromo: () {
           setState(() {
@@ -631,7 +629,6 @@ class _HomeScreenState extends State<HomeScreen>
       _NavItem(Icons.home_rounded,          Icons.home_outlined,               'Beranda'),
       _NavItem(Icons.local_offer_rounded,   Icons.local_offer_outlined,        'Promo'),
       _NavItem(Icons.receipt_long_rounded,  Icons.receipt_long_outlined,       'Pesanan'),
-      _NavItem(Icons.chat_bubble_rounded,   Icons.chat_bubble_outline_rounded,  'Chat'),
       _NavItem(Icons.person_rounded,        Icons.person_outline_rounded,       'Profil'),
     ];
 

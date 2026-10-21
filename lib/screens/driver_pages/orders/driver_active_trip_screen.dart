@@ -300,14 +300,6 @@ class _DriverActiveTripScreenState extends State<DriverActiveTripScreen> with Si
                     children: [
                       Expanded(
                         child: _buildActionButton(
-                          icon: Icons.chat_bubble_outline,
-                          label: 'Chat',
-                          onTap: () {},
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildActionButton(
                           icon: Icons.phone_outlined,
                           label: 'Call',
                           onTap: () {},

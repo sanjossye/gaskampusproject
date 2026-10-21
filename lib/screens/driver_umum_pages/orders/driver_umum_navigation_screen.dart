@@ -303,14 +303,6 @@ class _DriverUmumNavigationScreenState extends State<DriverUmumNavigationScreen>
                     children: [
                       Expanded(
                         child: _buildActionButton(
-                          icon: Icons.chat_bubble_outline,
-                          label: 'Chat',
-                          onTap: () {},
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildActionButton(
                           icon: Icons.phone_outlined,
                           label: 'Telpon',
                           onTap: () {},

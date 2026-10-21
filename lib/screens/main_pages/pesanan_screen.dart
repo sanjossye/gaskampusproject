@@ -1041,9 +1041,6 @@ class _ActiveOrderScreen extends StatelessWidget {
                               ),
                               Row(
                                 children: [
-                                  _actionBtn(Icons.chat_bubble_outline_rounded,
-                                      kSecondaryGreen, isDark),
-                                  const SizedBox(width: 8),
                                   _actionBtn(Icons.call_outlined,
                                       kSecondaryGreen, isDark),
                                 ],

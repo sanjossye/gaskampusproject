@@ -83,12 +83,15 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color bgColor = isDark ? kBackgroundDark : kBackgroundLight;
-    final Color textPrimary =
-        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final Color dotInactive =
-        isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
-    final Color secondaryBtnBg =
-        isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final Color textPrimary = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF0F172A);
+    final Color dotInactive = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFCBD5E1);
+    final Color secondaryBtnBg = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -117,10 +120,8 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                     onPageChanged: (index) =>
                         setState(() => _currentPage = index),
                     itemCount: _pages.length,
-                    itemBuilder: (context, index) => _OnboardingPage(
-                      data: _pages[index],
-                      isDark: isDark,
-                    ),
+                    itemBuilder: (context, index) =>
+                        _OnboardingPage(data: _pages[index], isDark: isDark),
                   ),
                 ),
 
@@ -206,10 +207,12 @@ class _OnboardingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color textPrimary =
-        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final Color textSecondary =
-        isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+    final Color textPrimary = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF0F172A);
+    final Color textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF475569);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -320,8 +323,7 @@ class _SkipButton extends StatelessWidget {
           child: Text(
             'Skip',
             style: TextStyle(
-              color:
-                  isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+              color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
               fontSize: 14,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
@@ -359,9 +361,10 @@ class _PrimaryButtonState extends State<_PrimaryButton>
       lowerBound: 0.0,
       upperBound: 1.0,
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -400,11 +403,7 @@ class _PrimaryButtonState extends State<_PrimaryButton>
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.school_rounded,
-                color: Color(0xFF0F172A),
-                size: 24,
-              ),
+              Icon(Icons.school_rounded, color: Color(0xFF0F172A), size: 24),
               SizedBox(width: 12),
               Text(
                 'Masuk dengan Nomor Mahasiswa',

@@ -180,29 +180,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                       ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.chat_bubble_outline, color: textMuted, size: 20),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF68CD5C).withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.call, color: Color(0xFF3E8E34), size: 20),
-                      ),
-                    ],
-                  ),
+                  const SizedBox.shrink(),
                 ],
               ),
               const SizedBox(height: 24),
