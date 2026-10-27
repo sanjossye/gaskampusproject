@@ -4,6 +4,7 @@ import 'promo_screen.dart';
 import 'pesanan_screen.dart';
 import 'profile_screen.dart';
 import 'topup_modal.dart';
+import 'nearby_drivers_modal.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const Color kPrimary       = Color(0xFFC0F637);
@@ -106,7 +107,15 @@ class _HomeScreenState extends State<HomeScreen>
         SliverToBoxAdapter(child: _buildMapCard()),
         SliverToBoxAdapter(child: _buildSectionLabel('Promo Untukmu', tp, ts)),
         SliverToBoxAdapter(child: _buildPromoBanner()),
-        SliverToBoxAdapter(child: _buildSectionLabel('Driver Aktif', tp, ts, action: 'Lihat Semua')),
+        SliverToBoxAdapter(
+          child: _buildSectionLabel(
+            'Driver Aktif',
+            tp,
+            ts,
+            action: 'Lihat Semua',
+            onActionTap: () => showNearbyDriversModal(context),
+          ),
+        ),
         SliverToBoxAdapter(child: _buildDriversRow(tp, ts, isDark)),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
@@ -136,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Selamat pagi 👋',
+                Text('Selamat Pagi 👋',
                     style: _body(ts, 12, FontWeight.w500, ls: 0.2)),
                 const SizedBox(height: 2),
                 Text('Ahmad Zaki', style: _body(tp, 16, FontWeight.bold)),
@@ -326,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen>
   // 4. Section Label
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildSectionLabel(String title, Color tp, Color ts,
-      {String? action}) {
+      {String? action, VoidCallback? onActionTap}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
       child: Row(
@@ -334,7 +343,14 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Text(title, style: _body(tp, 15, FontWeight.bold)),
           if (action != null)
-            Text(action, style: _body(kPrimaryDeep, 13, FontWeight.w600)),
+            InkWell(
+              onTap: onActionTap,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(action, style: _body(kPrimaryDeep, 13, FontWeight.w600)),
+              ),
+            ),
         ],
       ),
     );
@@ -347,15 +363,14 @@ class _HomeScreenState extends State<HomeScreen>
     final services = [
       _ServiceItem('Antar',   Icons.motorcycle_rounded,   kPrimary,                kTextOnPrimary),
       _ServiceItem('Makan',   Icons.restaurant_rounded,   const Color(0xFFFF9F43), Colors.white),
-      _ServiceItem('Beliin',  Icons.shopping_bag_rounded, const Color(0xFF54A0FF), Colors.white),
-      _ServiceItem('Laundry', Icons.dry_cleaning_rounded, const Color(0xFFD980FA), Colors.white),
+      _ServiceItem('Titip',  Icons.shopping_bag_rounded, const Color(0xFF54A0FF), Colors.white),
     ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemW = (constraints.maxWidth - 12 * 3) / 4;
+          final itemW = (constraints.maxWidth - 16 * (services.length - 1)) / services.length;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: services
@@ -418,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildMapCard() {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      height: 140,
+      height: 148,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
@@ -426,32 +441,99 @@ class _HomeScreenState extends State<HomeScreen>
           end: Alignment.bottomRight,
           colors: [Color(0xFF1A2E0A), Color(0xFF0D1A05)],
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _DotGridPainter())),
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                      color: kPrimary, shape: BoxShape.circle),
-                  child: const Icon(Icons.location_on_rounded,
-                      color: kTextOnPrimary, size: 20),
-                ),
-                const SizedBox(height: 10),
-                Text('Lihat Driver Terdekat',
-                    style: _body(Colors.white, 14, FontWeight.bold)),
-                const SizedBox(height: 3),
-                Text('3 driver aktif di sekitarmu',
-                    style: _body(Colors.white54, 12, FontWeight.w400)),
-              ],
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: kPrimary.withOpacity(0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => showNearbyDriversModal(context),
+          splashColor: kPrimary.withOpacity(0.15),
+          highlightColor: kPrimary.withOpacity(0.08),
+          child: Stack(
+            children: [
+              Positioned.fill(child: CustomPaint(painter: _DotGridPainter())),
+              // Badge Top Right
+              Positioned(
+                top: 12,
+                right: 14,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(
+                      color: kPrimary.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: kPrimary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Radar Aktif',
+                        style: _body(kPrimary, 11, FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: kPrimary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: kPrimary.withOpacity(0.4),
+                            blurRadius: 14,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.radar_rounded,
+                          color: kTextOnPrimary, size: 24),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Lihat Driver Terdekat',
+                        style: _body(Colors.white, 15, FontWeight.bold)),
+                    const SizedBox(height: 3),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Ketuk untuk memindai radar sekitar',
+                            style: _body(Colors.white70, 12, FontWeight.w400)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_ios_rounded,
+                            size: 10, color: kPrimary),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

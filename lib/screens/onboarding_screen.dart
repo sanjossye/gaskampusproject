@@ -157,12 +157,12 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                         }),
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 18),
 
                       // Tombol Utama — Masuk dengan Nomor Mahasiswa
                       _PrimaryButton(onTap: _onPrimaryTap),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // Tombol Sekunder — Daftar
                       _SecondaryButton(
@@ -219,47 +219,48 @@ class _OnboardingPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ── Gambar ───────────────────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            height: 400,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? kPrimary.withOpacity(0.05)
-                  : kPrimary.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Image.asset(
-                data['image']!,
-                fit: BoxFit.contain,
-                errorBuilder: (context, _, __) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _fallbackIcon,
-                        size: 100,
-                        color: kPrimary.withOpacity(0.7),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'GasKampus',
-                        style: TextStyle(
-                          color: kPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
+          // ── Gambar (Responsif mengikuti tinggi layar) ───────────────────────
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? kPrimary.withOpacity(0.05)
+                    : kPrimary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  data['image']!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, _, __) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _fallbackIcon,
+                          size: 80,
+                          color: kPrimary.withOpacity(0.7),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        const Text(
+                          'GasKampus',
+                          style: TextStyle(
+                            color: kPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 18),
 
           // ── Judul ─────────────────────────────────────────────────────────
           Text(
@@ -267,14 +268,14 @@ class _OnboardingPage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: textPrimary,
-              fontSize: 32,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
               height: 1.2,
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           // ── Deskripsi ─────────────────────────────────────────────────────
           Padding(
@@ -284,12 +285,13 @@ class _OnboardingPage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textSecondary,
-                fontSize: 17,
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
-                height: 1.6,
+                height: 1.4,
               ),
             ),
           ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -388,7 +390,7 @@ class _PrimaryButtonState extends State<_PrimaryButton>
             Transform.scale(scale: _scale.value, child: child),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
           decoration: BoxDecoration(
             color: kPrimary,
             borderRadius: BorderRadius.circular(99),
@@ -400,17 +402,21 @@ class _PrimaryButtonState extends State<_PrimaryButton>
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.school_rounded, color: Color(0xFF0F172A), size: 24),
-              SizedBox(width: 12),
-              Text(
-                'Masuk dengan Nomor Mahasiswa',
-                style: TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
+              const Icon(Icons.school_rounded, color: Color(0xFF0F172A), size: 22),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Masuk dengan Nomor Mahasiswa',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

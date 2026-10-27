@@ -1,0 +1,9 @@
+@echo off
+echo ========================================================
+echo   Menyalakan Emulator Android dan Menjalankan Aplikasi...
+echo ========================================================
+echo Membuka emulator Pixel_6a...
+start /b flutter emulators --launch Pixel_6a
+echo Menunggu emulator menyala dan menjalankan Flutter...
+flutter run
+pause

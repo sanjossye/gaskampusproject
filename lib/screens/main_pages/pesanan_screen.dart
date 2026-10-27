@@ -131,27 +131,21 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
   static const _services = [
     {
       'label': 'Goride',
-      'icon': Icons.motorcycle,
-      'fare': 'Rp 12.000',
-      'time': '6-8'
+      'icon': Icons.motorcycle_rounded,
+      'fare': 'Rp 10.000',
+      'time': '3-5'
     },
     {
       'label': 'Gocar',
       'icon': Icons.directions_car_rounded,
-      'fare': 'Rp 25.000',
+      'fare': 'Rp 20.000',
       'time': '5-7'
-    },
-    {
-      'label': 'Gobox',
-      'icon': Icons.local_shipping_rounded,
-      'fare': 'Rp 35.000',
-      'time': '10-15'
     },
     {
       'label': 'Lainnya',
       'icon': Icons.more_horiz_rounded,
-      'fare': 'Rp 35.000',
-      'time': '10-15'
+      'fare': 'Rp 10.000',
+      'time': '3-5'
     },
   ];
 
@@ -1337,18 +1331,15 @@ class _OrderCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border(
-          top:    BorderSide(color: borderColor),
-          right:  BorderSide(color: borderColor),
-          bottom: BorderSide(color: borderColor),
-          left:   BorderSide(
-            color: isProses ? kPrimary : borderColor,
-            width: isProses ? 4 : 1,
-          ),
+        border: Border.all(
+          color: isProses ? kPrimary : borderColor,
+          width: isProses ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: isProses
+                ? kPrimary.withOpacity(0.12)
+                : Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

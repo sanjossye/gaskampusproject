@@ -55,7 +55,6 @@
 - **Antar (Campus Ride):** Layanan antar-jemput motor cepat di sekitar fakultas, asrama, dan area kos-kosan.
 - **Makan (Campus Food):** Pemesanan makanan dari kantin kampus dan warung makan sekitar tanpa potongan komisi tinggi.
 - **Beliin (Campus Jastip):** Jasa titip pembelian perlengkapan kuliah, fotokopi, obat, atau barang darurat lainnya.
-- **Laundry (Campus Wash):** Penjemputan dan pengantaran cucian pakaian dari kos ke mitra laundry kampus.
 
 ### 💳 3. Dompet Digital & Transaksi (GasPay)
 - Informasi saldo instan **GasPay** dan **Koin Kampus**.
@@ -206,7 +205,7 @@ Aplikasi telah dilengkapi akun bawaan (*pre-configured demo accounts*) untuk mem
 
 ### Alur Operasional Singkat:
 1. **Onboarding & Login:** Pengguna disambut oleh 3 slide onboarding interaktif dan masuk melalui halaman login dengan akun yang sesuai.
-2. **Pemesanan Layanan (Mahasiswa):** Pilih menu (*Antar / Makan / Beliin / Laundry*), tentukan titik jemput dan tujuan, lalu lakukan konfirmasi pesanan.
+2. **Pemesanan Layanan (Mahasiswa):** Pilih menu (*Antar / Makan / Beliin*), tentukan titik jemput dan tujuan, lalu lakukan konfirmasi pesanan.
 3. **Penerimaan Order (Driver):** Driver menerima notifikasi permintaan perjalanan, membuka navigasi peta, dan mengubah status perjalanan hingga selesai.
 4. **Pembayaran & Evaluasi:** Mahasiswa menyelesaikan pembayaran via GasPay dan memberikan rating bintang serta ulasan.
 
