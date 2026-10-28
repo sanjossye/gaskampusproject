@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/onboarding_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 // Notifier global untuk kontrol Dark Mode dan Light Mode di seluruh aplikasi
 final ValueNotifier<ThemeMode> themeNotifier =
     ValueNotifier<ThemeMode>(ThemeMode.system);
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const GasKampusApp());
 }
 

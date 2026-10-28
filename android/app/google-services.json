@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "310241410391",
+    "project_id": "gas-kampus",
+    "storage_bucket": "gas-kampus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310241410391:android:300467c3b9203b3acd9212",
+        "android_client_info": {
+          "package_name": "com.example.gas_kampusapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMmXHk6zB7C-ETxCA4cjWmBFFHEcDLmCc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
