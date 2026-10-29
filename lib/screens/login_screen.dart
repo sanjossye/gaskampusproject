@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'register_screen.dart';
 import 'main_pages/home_screen.dart';
-import 'driver_pages/driver_home_screen.dart';
+import 'driver_pages/home/driver_home_screen.dart';
 import 'admin_pages/admin_home_screen.dart';
 import 'driver_umum_pages/driver_umum_home_screen.dart';
 

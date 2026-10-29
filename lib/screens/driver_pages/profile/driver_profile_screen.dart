@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../login_screen.dart';
-import '../notifications_screen.dart';
+import '../../login_screen.dart';
+import '../../notifications_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 
