@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'orders/driver_orders_screen.dart';
-import 'driver_jadwal_screen.dart';
-import 'driver_profile_screen.dart';
-import '../notifications_screen.dart';
-import '../wallet_screen.dart';
+import '../orders/driver_orders_screen.dart';
+import '../jadwal/driver_jadwal_screen.dart';
+import '../profile/driver_profile_screen.dart';
+import '../../notifications_screen.dart';
+import '../../wallet_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
