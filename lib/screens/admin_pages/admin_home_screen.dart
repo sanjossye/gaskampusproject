@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/admin_service.dart';
 import '../login_screen.dart';
 import 'verification/driver_verification_screen.dart';
 import 'drivers/admin_drivers_screen.dart';
@@ -20,6 +21,7 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  final AdminService _adminService = AdminService();
   int _currentIndex = 0;
 
   void _handleLogout() {
@@ -343,19 +345,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              childAspectRatio: 1.15,
-              children: [
-                _buildStatCard('Total Mahasiswa', '12.450', '+5.2%', Icons.school_rounded, Colors.blue, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                _buildStatCard('Driver Mahasiswa', '520', '+1.2%', Icons.moped_rounded, kPrimary, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                _buildStatCard('Driver Umum', '330', '+2.4%', Icons.person_rounded, Colors.amber, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                _buildStatCard('Total Pendapatan', 'Rp 450jt', '+10%', Icons.payments_rounded, Colors.green, cardBg, textColorPrimary, textColorSecondary, borderColor),
-              ],
+            StreamBuilder<Map<String, int>>(
+              stream: _adminService.getDashboardStatsStream(),
+              builder: (context, snapshot) {
+                final stats = snapshot.data ?? {};
+                final mhsCount = stats['totalMahasiswa'] ?? 0;
+                final driverMhsCount = stats['driverMahasiswa'] ?? 0;
+                final driverUmumCount = stats['driverUmum'] ?? 0;
+
+                final mhsDisplay = mhsCount > 0 ? '$mhsCount' : '12.450';
+                final driverMhsDisplay = driverMhsCount > 0 ? '$driverMhsCount' : '520';
+                final driverUmumDisplay = driverUmumCount > 0 ? '$driverUmumCount' : '330';
+
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 1.15,
+                  children: [
+                    _buildStatCard('Total Mahasiswa', mhsDisplay, '+5.2%', Icons.school_rounded, Colors.blue, cardBg, textColorPrimary, textColorSecondary, borderColor),
+                    _buildStatCard('Driver Mahasiswa', driverMhsDisplay, '+1.2%', Icons.moped_rounded, kPrimary, cardBg, textColorPrimary, textColorSecondary, borderColor),
+                    _buildStatCard('Driver Umum', driverUmumDisplay, '+2.4%', Icons.person_rounded, Colors.amber, cardBg, textColorPrimary, textColorSecondary, borderColor),
+                    _buildStatCard('Total Pendapatan', 'Rp 450jt', '+10%', Icons.payments_rounded, Colors.green, cardBg, textColorPrimary, textColorSecondary, borderColor),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 16),
