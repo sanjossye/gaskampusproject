@@ -4,6 +4,7 @@ class UserModel {
   final String uid;
   final String name;
   final String email;
+  final String username;
   final String? nim;
   final String? phone;
   final String? photoUrl;
@@ -20,6 +21,7 @@ class UserModel {
     required this.uid,
     required this.name,
     required this.email,
+    required this.username,
     this.nim,
     this.phone,
     this.photoUrl,
@@ -38,6 +40,7 @@ class UserModel {
       uid: docId,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
+      username: data['username'] ?? '',
       nim: data['nim'],
       phone: data['phone'],
       photoUrl: data['photoUrl'],
@@ -60,6 +63,7 @@ class UserModel {
     return {
       'name': name,
       'email': email,
+      'username': username,
       'nim': nim,
       'phone': phone,
       'photoUrl': photoUrl,
@@ -78,6 +82,7 @@ class UserModel {
     String? uid,
     String? name,
     String? email,
+    String? username,
     String? nim,
     String? phone,
     String? photoUrl,
@@ -94,6 +99,7 @@ class UserModel {
       uid: uid ?? this.uid,
       name: name ?? this.name,
       email: email ?? this.email,
+      username: username ?? this.username,
       nim: nim ?? this.nim,
       phone: phone ?? this.phone,
       photoUrl: photoUrl ?? this.photoUrl,
@@ -221,4 +227,3 @@ class DriverProfileModel {
   String toString() =>
       'DriverProfileModel(uid: $uid, plate: $vehiclePlate, status: $status)';
 }
-

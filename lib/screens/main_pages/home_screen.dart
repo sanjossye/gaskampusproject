@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart';
 import 'profile_screen.dart';
@@ -38,9 +40,76 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
 
+  String _userName = 'Mahasiswa';
+  int _walletBalance = 50000;
+  int _coinBalance = 0;
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 4 && hour < 11) {
+      return 'Selamat Pagi 👋';
+    } else if (hour >= 11 && hour < 15) {
+      return 'Selamat Siang ☀️';
+    } else if (hour >= 15 && hour < 18) {
+      return 'Selamat Sore 🌤️';
+    } else {
+      return 'Selamat Malam 🌙';
+    }
+  }
+
+  String _formatCurrency(int val) {
+    return val.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
+
+  void _loadUserData() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Ambil profil user dari users/{uid}
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((doc) {
+        if (doc.exists && mounted) {
+          final data = doc.data();
+          if (data != null && data['name'] != null && (data['name'] as String).isNotEmpty) {
+            setState(() {
+              _userName = data['name'];
+            });
+          }
+        }
+      });
+
+      // Ambil saldo dan koin dari wallets/{uid}
+      FirebaseFirestore.instance
+          .collection('wallets')
+          .doc(user.uid)
+          .snapshots()
+          .listen((doc) {
+        if (doc.exists && mounted) {
+          final data = doc.data();
+          if (data != null) {
+            setState(() {
+              if (data['balance'] != null) {
+                _walletBalance = (data['balance'] as num).toInt();
+              }
+              if (data['coins'] != null) {
+                _coinBalance = (data['coins'] as num).toInt();
+              }
+            });
+          }
+        }
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -145,10 +214,10 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Selamat Pagi 👋',
+                Text(_getGreeting(),
                     style: _body(ts, 12, FontWeight.w500, ls: 0.2)),
                 const SizedBox(height: 2),
-                Text('Ahmad Zaki', style: _body(tp, 16, FontWeight.bold)),
+                Text(_userName, style: _body(tp, 16, FontWeight.bold)),
               ],
             ),
           ),
@@ -247,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen>
                         style: _body(kTextOnPrimary.withOpacity(0.55), 11,
                             FontWeight.w500)),
                     const SizedBox(height: 3),
-                    Text('Rp 50.000',
+                    Text('Rp ${_formatCurrency(_walletBalance)}',
                         style: _display(kTextOnPrimary, 26, FontWeight.w800)),
                   ],
                 ),
@@ -265,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen>
                       Icon(Icons.toll_rounded,
                           size: 15, color: kTextOnPrimary.withOpacity(0.75)),
                       const SizedBox(width: 4),
-                      Text('2.500',
+                      Text(_formatCurrency(_coinBalance),
                           style: _body(kTextOnPrimary, 17, FontWeight.bold)),
                     ],
                   ),
@@ -609,95 +678,143 @@ class _HomeScreenState extends State<HomeScreen>
   // 8. Driver Row
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildDriversRow(Color tp, Color ts, bool isDark) {
-    final drivers = [
-      {'name': 'Budi S.',  'rating': '4.9', 'dist': '1 km'},
-      {'name': 'Andi W.',  'rating': '4.8', 'dist': '2 km'},
-      {'name': 'Rizky P.', 'rating': '5.0', 'dist': '500 m'},
-    ];
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', whereIn: ['driver_kampus', 'driver_umum'])
+          .where('isOnline', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Fallback jika Firestore belum diisi / offline: hanya tampilkan driver yang online
+        final defaultOnlineDrivers = [
+          {'name': 'Budi S.', 'rating': '4.9', 'dist': '250 m'},
+          {'name': 'Siti A.', 'rating': '5.0', 'dist': '450 m'},
+          {'name': 'Agus P.', 'rating': '4.7', 'dist': '750 m'},
+        ];
 
-    return SizedBox(
-      height: 136,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: drivers.length,
-        itemBuilder: (ctx, i) {
-          final d = drivers[i];
-          return Container(
-            width: 120,
-            margin: const EdgeInsets.only(right: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? kCardDark : kCardLight,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                  color: isDark ? kBorderDark : kBorderLight),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? kBorderDark
-                            : const Color(0xFFEDF2E5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person_rounded,
-                          color: isDark ? Colors.white38 : Colors.black26,
-                          size: 22),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2ED573),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? kCardDark : kCardLight,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  d['name']!,
-                  style: _body(tp, 12, FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.star_rounded, size: 12, color: kPrimaryDeep),
-                    const SizedBox(width: 3),
-                    Text(d['rating']!,
-                        style: _body(ts, 11, FontWeight.w500)),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(d['dist']!,
-                    style: _body(ts, 11, FontWeight.w400),
-                    textAlign: TextAlign.center),
-              ],
+        List<Map<String, String>> drivers = [];
+
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          // Estimasi jarak terdekat untuk driver online (karena belum integrasi peta)
+          final distancePool = ['250 m', '450 m', '750 m', '900 m', '1.2 km'];
+          int idx = 0;
+
+          drivers = snapshot.data!.docs.map((doc) {
+            final data = doc.data();
+            final fullName = (data['name'] as String? ?? 'Driver').trim();
+            final parts = fullName.split(' ');
+            final shortName = parts.length > 1
+                ? '${parts[0]} ${parts[1][0]}.'
+                : parts[0];
+            final ratingVal = (data['rating'] as num?)?.toDouble() ?? 5.0;
+            final dist = idx < distancePool.length ? distancePool[idx] : '${(idx + 1) * 300} m';
+            idx++;
+
+            return {
+              'name': shortName,
+              'rating': ratingVal.toStringAsFixed(1),
+              'dist': dist,
+            };
+          }).toList();
+        } else {
+          drivers = defaultOnlineDrivers;
+        }
+
+        if (drivers.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Text(
+              'Saat ini belum ada driver yang online di sekitar kampus.',
+              style: _body(ts, 12, FontWeight.w500),
             ),
           );
-        },
-      ),
+        }
+
+        return SizedBox(
+          height: 136,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: drivers.length,
+            itemBuilder: (ctx, i) {
+              final d = drivers[i];
+              return Container(
+                width: 120,
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? kCardDark : kCardLight,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                      color: isDark ? kBorderDark : kBorderLight),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? kBorderDark
+                                : const Color(0xFFEDF2E5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.person_rounded,
+                              color: isDark ? Colors.white38 : Colors.black26,
+                              size: 22),
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ED573),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? kCardDark : kCardLight,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      d['name']!,
+                      style: _body(tp, 12, FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.star_rounded, size: 12, color: kPrimaryDeep),
+                        const SizedBox(width: 3),
+                        Text(d['rating']!,
+                            style: _body(ts, 11, FontWeight.w500)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(d['dist']!,
+                        style: _body(ts, 11, FontWeight.w400),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
