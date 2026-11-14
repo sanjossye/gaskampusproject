@@ -12,12 +12,14 @@ class WalletModel {
   final String walletId;
   final String userId;
   final int balance;
+  final int coins;
   final DateTime updatedAt;
 
   const WalletModel({
     required this.walletId,
     required this.userId,
     required this.balance,
+    this.coins = 0,
     required this.updatedAt,
   });
 
@@ -26,6 +28,7 @@ class WalletModel {
       walletId: docId,
       userId: data['userId'] ?? '',
       balance: data['balance'] ?? 0,
+      coins: data['coins'] ?? 0,
       updatedAt: data['updatedAt'] is DateTime
           ? data['updatedAt']
           : DateTime.tryParse(data['updatedAt']?.toString() ?? '') ?? DateTime.now(),
@@ -36,6 +39,7 @@ class WalletModel {
     return {
       'userId': userId,
       'balance': balance,
+      'coins': coins,
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
@@ -44,12 +48,14 @@ class WalletModel {
     String? walletId,
     String? userId,
     int? balance,
+    int? coins,
     DateTime? updatedAt,
   }) {
     return WalletModel(
       walletId: walletId ?? this.walletId,
       userId: userId ?? this.userId,
       balance: balance ?? this.balance,
+      coins: coins ?? this.coins,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

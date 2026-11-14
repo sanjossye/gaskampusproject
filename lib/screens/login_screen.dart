@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../services/auth_services.dart';
+import '../services/seed_services.dart';
 import 'register_screen.dart';
 import 'main_pages/home_screen.dart';
 import 'driver_pages/home/driver_home_screen.dart';
@@ -18,6 +21,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  bool _loading = false;
+  final AuthService _authService = AuthService();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -120,6 +125,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Primary Action
                         _buildPrimaryButton(),
+
+                        // Tombol isi data dummy — hanya muncul saat mode debug
+                        if (kDebugMode) _buildSeedButton(),
 
                         const SizedBox(height: 32),
 
@@ -294,45 +302,74 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _handleLogin() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    if (username.isEmpty || password.isEmpty) {
+      _showSnack('Isi NIM/username/no. HP dan password dulu.', Colors.red);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final user = await _authService.login(username, password);
+      if (!mounted) return;
+      final Widget home = switch (user.role) {
+        'driver_kampus' => const DriverHomeScreen(),
+        'driver_umum' => const DriverUmumHomeScreen(),
+        'admin' => const AdminHomeScreen(),
+        _ => const HomeScreen(),
+      };
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => home),
+        (route) => false,
+      );
+    } catch (e) {
+      _showSnack(AuthService.readableError(e), Colors.red);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleSeed() async {
+    setState(() => _loading = true);
+    try {
+      final log = await SeedService().seedDemoAccounts();
+      debugPrint(log.join('\n'));
+      _showSnack(
+        'Data dummy siap.\n'
+        'Mahasiswa: mahasiswa, mahasiswa2, mahasiswa3\n'
+        'Driver: driverm, driverm2, driveru, driveru2\n'
+        'Admin: admin | Pass: ${SeedService.demoPassword}',
+        Colors.green,
+      );
+    } catch (e) {
+      _showSnack('Seed gagal: ${AuthService.readableError(e)}', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showSnack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
+
+  Widget _buildSeedButton() {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _loading ? null : _handleSeed,
+        icon: const Icon(Icons.dataset_outlined, size: 18),
+        label: const Text('[DEV] Isi Data Dummy ke Firebase'),
+      ),
+    );
+  }
+
   Widget _buildPrimaryButton() {
     return InkWell(
-      onTap: () {
-        final username = _usernameController.text.trim();
-        final password = _passwordController.text.trim();
-
-        if (username == 'mahasiswa' && password == 'mahasiswa') {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          );
-        } else if (username == 'driverm' && password == 'driverm') {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const DriverHomeScreen()),
-            (route) => false,
-          );
-        } else if (username == 'admin' && password == 'admin') {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
-            (route) => false,
-          );
-        } else if (username == 'driveru' && password == 'driveru') {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const DriverUmumHomeScreen()),
-            (route) => false,
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Username atau Password salah!'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
+      onTap: _loading ? null : _handleLogin,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: double.infinity,
@@ -348,15 +385,21 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
-        child: const Center(
-          child: Text(
-            'Masuk',
-            style: TextStyle(
-              color: Color(0xFF0F172A),
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        child: Center(
+          child: _loading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF0F172A)),
+                )
+              : const Text(
+                  'Masuk',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );

@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── login_index ──────────────────────────────────────────────────────────
+    // Publik boleh baca SATU dokumen (get), tapi TIDAK boleh list/query.
+    // Write hanya untuk user yang sudah login DAN dokumennya berisi uid miliknya.
+    match /login_index/{identifier} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if request.auth != null
+                   && request.resource.data.uid == request.auth.uid;
+    }
+
+    // ── users/{uid} ──────────────────────────────────────────────────────────
+    // Read & write hanya jika request.auth.uid == uid.
+    // Admin (cek role di dokumen users/{auth.uid}) boleh read semua user.
+    match /users/{uid} {
+      allow read: if request.auth != null
+                  && (request.auth.uid == uid
+                      || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow write: if request.auth != null
+                   && request.auth.uid == uid;
+
+      // Sub-collections (driver_profile, schedules, dll.)
+      match /{subCol}/{docId} {
+        allow read, write: if request.auth != null
+                           && request.auth.uid == uid;
+      }
+    }
+
+    // ── Collection lain (wallets, trips, dll.) ───────────────────────────────
+    // Hanya user yang sudah login.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+
