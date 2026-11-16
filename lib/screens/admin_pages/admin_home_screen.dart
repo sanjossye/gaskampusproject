@@ -196,7 +196,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _navItem(Icons.grid_view_rounded, 'Beranda', _currentIndex == 0, () => setState(() => _currentIndex = 0)),
-                  _navItem(Icons.two_wheeler_rounded, 'Driver', _currentIndex == 1, () => setState(() => _currentIndex = 1)),
+                  _navItem(Icons.people_alt_rounded, 'Pengguna', _currentIndex == 1, () => setState(() => _currentIndex = 1)),
                   // Center Action Button
                   Transform.translate(
                     offset: const Offset(0, -8),
@@ -365,10 +365,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   crossAxisSpacing: 14,
                   childAspectRatio: 1.15,
                   children: [
-                    _buildStatCard('Total Mahasiswa', mhsDisplay, '+5.2%', Icons.school_rounded, Colors.blue, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                    _buildStatCard('Driver Mahasiswa', driverMhsDisplay, '+1.2%', Icons.moped_rounded, kPrimary, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                    _buildStatCard('Driver Umum', driverUmumDisplay, '+2.4%', Icons.person_rounded, Colors.amber, cardBg, textColorPrimary, textColorSecondary, borderColor),
-                    _buildStatCard('Total Pendapatan', 'Rp 450jt', '+10%', Icons.payments_rounded, Colors.green, cardBg, textColorPrimary, textColorSecondary, borderColor),
+                    _buildStatCard('Total Mahasiswa', mhsDisplay, '+5.2%', Icons.school_rounded, Colors.blue, cardBg, textColorPrimary, textColorSecondary, borderColor, onTap: () => setState(() => _currentIndex = 1)),
+                    _buildStatCard('Driver Mahasiswa', driverMhsDisplay, '+1.2%', Icons.moped_rounded, kPrimary, cardBg, textColorPrimary, textColorSecondary, borderColor, onTap: () => setState(() => _currentIndex = 1)),
+                    _buildStatCard('Driver Umum', driverUmumDisplay, '+2.4%', Icons.person_rounded, Colors.amber, cardBg, textColorPrimary, textColorSecondary, borderColor, onTap: () => setState(() => _currentIndex = 1)),
+                    _buildStatCard('Total Pendapatan', 'Rp 450jt', '+10%', Icons.payments_rounded, Colors.green, cardBg, textColorPrimary, textColorSecondary, borderColor, onTap: () => setState(() => _currentIndex = 3)),
                   ],
                 );
               },
@@ -561,33 +561,37 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, String percent, IconData icon, Color color, Color bg, Color text, Color textSec, Color border) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, color: color, size: 18),
-              ),
-              Text(percent, style: _body(Colors.green, 10, FontWeight.bold)),
-            ],
-          ),
-          const Spacer(),
-          Text(label, style: _body(textSec, 11, FontWeight.w500)),
-          const SizedBox(height: 2),
-          Text(value, style: _body(text, 20, FontWeight.bold, h: 1)),
-        ],
+  Widget _buildStatCard(String label, String value, String percent, IconData icon, Color color, Color bg, Color text, Color textSec, Color border, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+                Text(percent, style: _body(Colors.green, 10, FontWeight.bold)),
+              ],
+            ),
+            const Spacer(),
+            Text(label, style: _body(textSec, 11, FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text(value, style: _body(text, 20, FontWeight.bold, h: 1)),
+          ],
+        ),
       ),
     );
   }

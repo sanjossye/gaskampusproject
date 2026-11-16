@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../models/user_model.dart';
 import '../../../services/admin_service.dart';
@@ -7,19 +8,36 @@ const Color kBgDark = Color(0xFF1D2210);
 const Color kBgLight = Color(0xFFF7F8F5);
 
 class AdminDriversScreen extends StatefulWidget {
-  const AdminDriversScreen({super.key});
+  final int initialTab; // 0: Mahasiswa, 1: Driver Mahasiswa, 2: Driver Umum
+
+  const AdminDriversScreen({super.key, this.initialTab = 1});
 
   @override
   State<AdminDriversScreen> createState() => _AdminDriversScreenState();
 }
 
-class _AdminDriversScreenState extends State<AdminDriversScreen> {
+class _AdminDriversScreenState extends State<AdminDriversScreen>
+    with SingleTickerProviderStateMixin {
   final AdminService _adminService = AdminService();
-  String _selectedCategory = 'Semua';
+  late TabController _tabController;
   String _searchQuery = '';
   bool _isSeeding = false;
 
-  final List<String> _categories = ['Semua', 'Mahasiswa', 'Umum', 'Aktif', 'Suspend'];
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleSeedData() async {
     setState(() => _isSeeding = true);
@@ -29,8 +47,8 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(count > 0
-                ? 'Berhasil menambahkan $count data driver ke Firebase Console!'
-                : 'Data driver sudah ada di Firebase.'),
+                ? 'Berhasil mengisi $count data pengguna (Mahasiswa & Driver) ke Firebase!'
+                : 'Data pengguna sudah ada di Firebase.'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -51,18 +69,17 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
     }
   }
 
-  Future<void> _toggleSuspendDriver(UserModel driver) async {
-    final bool isCurrentlySuspended = !driver.isActive;
-    final String name = driver.name;
+  Future<void> _toggleSuspendUser(UserModel user) async {
+    final bool isCurrentlySuspended = !user.isActive;
+    final String name = user.name;
 
     if (isCurrentlySuspended) {
-      // Aktifkan kembali
       try {
-        await _adminService.updateDriverActiveStatus(driver.uid, true);
+        await _adminService.updateDriverActiveStatus(user.uid, true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Akun $name berhasil diaktifkan kembali di Firestore.'),
+              content: Text('Akun $name berhasil diaktifkan kembali.'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
@@ -76,48 +93,393 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
         }
       }
     } else {
-      // Tampilkan dialog suspend
       showDialog(
         context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: Text('Suspend Driver: $name'),
-            content: const Text(
-              'Driver ini akan dinonaktifkan di Firebase dan tidak dapat menerima order perjalanan.',
-              style: TextStyle(fontSize: 13),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  try {
-                    await _adminService.updateDriverActiveStatus(driver.uid, false);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Akun $name berhasil di-suspend di Firestore.'),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Gagal update: $e'), backgroundColor: Colors.red),
-                      );
-                    }
+        builder: (ctx) => AlertDialog(
+          title: Text('Suspend Akun: $name'),
+          content: Text(
+            'Akun ini akan dibekukan di Firebase dan tidak dapat menggunakan layanan aplikasi.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await _adminService.updateDriverActiveStatus(user.uid, false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Akun $name berhasil di-suspend.'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
                   }
-                },
-                child: const Text('Suspend'),
-              ),
-            ],
-          );
-        },
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal update: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              child: const Text('Suspend'),
+            ),
+          ],
+        ),
       );
     }
+  }
+
+  /// Modal detail akun & menampilkan foto identitas fisik (KTM / KTP)
+  void _showUserDetailModal(UserModel user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+
+    final bool isStudent = user.role == 'mahasiswa';
+    final bool isStudentDriver = user.role == 'driver_kampus';
+    final bool isGeneralDriver = user.role == 'driver_umum';
+
+    final String docTitle = isGeneralDriver ? 'Kartu Tanda Penduduk (KTP)' : 'Kartu Tanda Mahasiswa (KTM)';
+    final String docSubtitle = isGeneralDriver
+        ? 'NIK: ${user.nik ?? '-'}'
+        : 'NIM: ${user.nim ?? '-'} • ${user.facultas ?? 'Fakultas'}';
+
+    final String docType = isGeneralDriver ? 'ktp' : 'ktm';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.88,
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+
+              // Top Bar Detail
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: kPrimary.withOpacity(0.2),
+                          backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                              ? NetworkImage(user.photoUrl!)
+                              : null,
+                          child: (user.photoUrl == null || user.photoUrl!.isEmpty)
+                              ? Text(user.name.isNotEmpty ? user.name[0] : 'U',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black))
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user.name,
+                                style: TextStyle(
+                                    color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(
+                              isStudent
+                                  ? 'Mahasiswa (Customer)'
+                                  : (isStudentDriver ? 'Driver Mahasiswa' : 'Driver Umum'),
+                              style: TextStyle(
+                                color: isStudent
+                                    ? Colors.blue
+                                    : (isStudentDriver ? Colors.green : Colors.amber.shade800),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              // Scrollable Detail Content
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // Informasi Utama Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildDetailRow(Icons.email_outlined, 'Email', user.email, textPrimary),
+                          const SizedBox(height: 8),
+                          _buildDetailRow(Icons.phone_outlined, 'Telepon', user.phone ?? '-', textPrimary),
+                          if (user.nim != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(Icons.badge_outlined, 'NIM', user.nim!, textPrimary),
+                          ],
+                          if (user.nik != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(Icons.badge_outlined, 'NIK', user.nik!, textPrimary),
+                          ],
+                          if (user.facultas != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(Icons.school_outlined, 'Fakultas', user.facultas!, textPrimary),
+                          ],
+                          if (user.vehiclePlate != null || user.vehicleBrand != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                              Icons.two_wheeler_outlined,
+                              'Kendaraan',
+                              '${user.vehicleBrand ?? ''} • ${user.vehiclePlate ?? ''}',
+                              textPrimary,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            Icons.check_circle_outline,
+                            'Status Akun',
+                            user.isActive ? 'Aktif' : 'Di-Suspend',
+                            user.isActive ? Colors.green : Colors.red,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Section: Foto Identitas Fisik (KTM / KTP)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Foto Dokumen Identitas',
+                            style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: kPrimary.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isGeneralDriver ? 'KTP' : 'KTM Kampus',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Card Tampilan Foto Identitas (KTM / KTP)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isGeneralDriver ? Icons.credit_card_rounded : Icons.school_rounded,
+                                size: 18,
+                                color: kPrimary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(docTitle,
+                                  style: TextStyle(
+                                      color: textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(docSubtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                          const SizedBox(height: 14),
+
+                          // Foto Preview (Membaca Base64 dari users/{uid}/documents/ktm atau URL ktmUrl)
+                          _buildIdentityImageWidget(user, docType),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+
+              // Bottom Actions
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: Icon(user.isActive ? Icons.block_outlined : Icons.check_circle_outline,
+                            size: 18, color: user.isActive ? Colors.red : Colors.green),
+                        label: Text(user.isActive ? 'Suspend Akun' : 'Aktifkan Akun',
+                            style: TextStyle(
+                                color: user.isActive ? Colors.red : Colors.green,
+                                fontWeight: FontWeight.bold)),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _toggleSuspendUser(user);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: user.isActive ? Colors.red : Colors.green),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.phone_outlined, size: 18),
+                        label: const Text('Hubungi', style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Menghubungi ${user.phone ?? user.email}...')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Widget untuk menampilkan foto identitas dengan prioritas:
+  /// 1. Subkoleksi `users/{uid}/documents/{docType}` (base64) jika ktmStorage == 'firestore'
+  /// 2. Field `ktmUrl` / `ktpUrl` jika tersimpan di Firebase Storage
+  /// 3. Fallback placeholder jika belum mengunggah
+  Widget _buildIdentityImageWidget(UserModel user, String docType) {
+    return FutureBuilder<Uint8List?>(
+      future: _adminService.getUserDocumentBase64(user.uid, docType),
+      builder: (context, snapshot) {
+        // Jika ada data base64 di subkoleksi documents
+        if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 16 / 10,
+              child: Image.memory(
+                snapshot.data!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
+        }
+
+        // Jika ada URL di ktmUrl atau ktpUrl
+        final fallbackUrl = (docType == 'ktp' ? user.ktpUrl : user.ktmUrl);
+        if (fallbackUrl != null && fallbackUrl.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 16 / 10,
+              child: Image.network(
+                fallbackUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildPlaceholderPhoto('Gagal memuat foto'),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+
+        // Tampilan placeholder jika dokumen belum diunggah
+        return _buildPlaceholderPhoto('Foto dokumen fisik belum diunggah');
+      },
+    );
+  }
+
+  Widget _buildPlaceholderPhoto(String message) {
+    return Container(
+      height: 140,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3), style: BorderStyle.solid),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.document_scanner_outlined, size: 40, color: Colors.grey),
+          const SizedBox(height: 8),
+          Text(message, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value, Color valueColor) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -132,68 +494,61 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
       backgroundColor: bg,
       body: SafeArea(
         child: StreamBuilder<List<UserModel>>(
-          stream: _adminService.getDriversStream(),
+          stream: _adminService.getAllUsersStream(),
           builder: (context, snapshot) {
-            final List<UserModel> allDrivers = snapshot.data ?? [];
-            final bool isLoading = snapshot.connectionState == ConnectionState.waiting && allDrivers.isEmpty;
+            final List<UserModel> allUsers = snapshot.data ?? [];
+            final bool isLoading = snapshot.connectionState == ConnectionState.waiting && allUsers.isEmpty;
 
-            final onlineCount = allDrivers.where((d) => d.isActive).length;
-            final suspendedCount = allDrivers.where((d) => !d.isActive).length;
-
-            // Filter logic
-            final filteredDrivers = allDrivers.where((d) {
-              final matchesSearch = d.name.toLowerCase().contains(_searchQuery) ||
-                  (d.nim != null && d.nim!.contains(_searchQuery)) ||
-                  (d.facultas != null && d.facultas!.toLowerCase().contains(_searchQuery));
-
-              if (!matchesSearch) return false;
-
-              switch (_selectedCategory) {
-                case 'Mahasiswa':
-                  return d.role == 'driver_kampus';
-                case 'Umum':
-                  return d.role == 'driver_umum';
-                case 'Aktif':
-                  return d.isActive;
-                case 'Suspend':
-                  return !d.isActive;
-                default:
-                  return true;
-              }
-            }).toList();
+            final mahasiswaList = allUsers.where((u) => u.role == 'mahasiswa').toList();
+            final driverMhsList = allUsers.where((u) => u.role == 'driver_kampus').toList();
+            final driverUmumList = allUsers.where((u) => u.role == 'driver_umum').toList();
 
             return Column(
               children: [
                 // Header
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text('Manajemen Driver',
-                                  style: TextStyle(
-                                      color: textColorPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    'Manajemen Pengguna',
+                                    style: TextStyle(
+                                      color: textColorPrimary,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                child: const Text('Firestore Live',
-                                    style: TextStyle(color: Colors.blue, fontSize: 9, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Tersambung ke koleksi `users` di Firebase',
-                              style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        ],
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text('Live',
+                                      style: TextStyle(color: Colors.blue, fontSize: 9, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Kelola mahasiswa, driver kampus, dan umum',
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                       IconButton(
                         tooltip: 'Isi Data Contoh ke Firebase',
@@ -204,32 +559,15 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
                                 height: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Icon(Icons.cloud_upload_rounded, color: kPrimary),
+                            : Icon(Icons.cloud_upload_outlined, color: kPrimary),
                       ),
-                    ],
-                  ),
-                ),
-
-                // Mini Stats Row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Row(
-                    children: [
-                      _buildMiniStat('Total Driver', '${allDrivers.length}', Icons.groups_rounded, Colors.blue,
-                          cardBg, borderColor, textColorPrimary),
-                      const SizedBox(width: 12),
-                      _buildMiniStat('Driver Aktif', '$onlineCount', Icons.electric_moped_rounded, kPrimary, cardBg,
-                          borderColor, textColorPrimary),
-                      const SizedBox(width: 12),
-                      _buildMiniStat('Di-Suspend', '$suspendedCount', Icons.block_rounded, Colors.red, cardBg,
-                          borderColor, textColorPrimary),
                     ],
                   ),
                 ),
 
                 // Search Bar
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
                   child: Container(
                     height: 46,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -246,7 +584,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
                           child: TextField(
                             style: TextStyle(color: textColorPrimary, fontSize: 13),
                             decoration: const InputDecoration(
-                              hintText: 'Cari nama, NIM, atau fakultas driver...',
+                              hintText: 'Cari nama, NIM, NIK, atau fakultas...',
                               hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
                               border: InputBorder.none,
                             ),
@@ -258,256 +596,273 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
                   ),
                 ),
 
-                // Category Chips
-                SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final cat = _categories[index];
-                      final isSelected = _selectedCategory == cat;
-                      return ChoiceChip(
-                        label: Text(cat),
-                        selected: isSelected,
-                        onSelected: (_) => setState(() => _selectedCategory = cat),
-                        selectedColor: kPrimary,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.black : textColorPrimary,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 12,
+                // TabBar (Mahasiswa | Driver Mhs | Driver Umum)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF141908) : const Color(0xFFE9ECEF),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    dividerColor: Colors.transparent,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    splashFactory: NoSplash.splashFactory,
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    indicator: BoxDecoration(
+                      color: kPrimary,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: kPrimary.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                        backgroundColor: cardBg,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        side: BorderSide(color: isSelected ? kPrimary : borderColor),
-                      );
-                    },
+                      ],
+                    ),
+                    labelColor: const Color(0xFF0F172A),
+                    unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                    tabs: [
+                      Tab(
+                        height: 36,
+                        child: Text('Mahasiswa (${mahasiswaList.length})'),
+                      ),
+                      Tab(
+                        height: 36,
+                        child: Text('Driver Mhs (${driverMhsList.length})'),
+                      ),
+                      Tab(
+                        height: 36,
+                        child: Text('Driver Umum (${driverUmumList.length})'),
+                      ),
+                    ],
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
-                // Driver List Content
+                // Tab Content
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : allDrivers.isEmpty
+                      : allUsers.isEmpty
                           ? _buildEmptyStateWithSeedButton(textColorPrimary)
-                          : filteredDrivers.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.person_off_outlined,
-                                          size: 54, color: Colors.grey.withOpacity(0.5)),
-                                      const SizedBox(height: 8),
-                                      const Text('Tidak ada driver pada filter ini',
-                                          style: TextStyle(color: Colors.grey)),
-                                    ],
-                                  ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 80),
-                                  itemCount: filteredDrivers.length,
-                                  itemBuilder: (context, index) {
-                                    final driver = filteredDrivers[index];
-                                    final bool isActive = driver.isActive;
-                                    final bool isStudent = driver.role == 'driver_kampus';
-
-                                    return Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: cardBg,
-                                        borderRadius: BorderRadius.circular(18),
-                                        border: Border.all(
-                                          color: !isActive ? Colors.red.withOpacity(0.4) : borderColor,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Stack(
-                                                children: [
-                                                  CircleAvatar(
-                                                    radius: 24,
-                                                    backgroundColor: kPrimary.withOpacity(0.2),
-                                                    backgroundImage: (driver.photoUrl != null &&
-                                                            driver.photoUrl!.isNotEmpty)
-                                                        ? NetworkImage(driver.photoUrl!)
-                                                        : null,
-                                                    child: (driver.photoUrl == null || driver.photoUrl!.isEmpty)
-                                                        ? Text(
-                                                            driver.name.isNotEmpty ? driver.name[0] : 'D',
-                                                            style: const TextStyle(
-                                                                fontWeight: FontWeight.bold, color: Colors.black),
-                                                          )
-                                                        : null,
-                                                  ),
-                                                  Positioned(
-                                                    bottom: 0,
-                                                    right: 0,
-                                                    child: Container(
-                                                      width: 12,
-                                                      height: 12,
-                                                      decoration: BoxDecoration(
-                                                        color: isActive ? Colors.green : Colors.red,
-                                                        shape: BoxShape.circle,
-                                                        border: Border.all(color: cardBg, width: 2),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            driver.name,
-                                                            style: TextStyle(
-                                                              color: textColorPrimary,
-                                                              fontWeight: FontWeight.bold,
-                                                              fontSize: 15,
-                                                            ),
-                                                            overflow: TextOverflow.ellipsis,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 6),
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(
-                                                              horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: isStudent
-                                                                ? Colors.blue.withOpacity(0.15)
-                                                                : Colors.amber.withOpacity(0.15),
-                                                            borderRadius: BorderRadius.circular(6),
-                                                          ),
-                                                          child: Text(
-                                                            isStudent ? 'Mahasiswa' : 'Umum',
-                                                            style: TextStyle(
-                                                              color: isStudent ? Colors.blue : Colors.amber.shade800,
-                                                              fontSize: 9,
-                                                              fontWeight: FontWeight.bold,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      isStudent
-                                                          ? (driver.facultas ?? 'Fakultas Belum Diisi')
-                                                          : 'Mitra Pengemudi Umum',
-                                                      style: const TextStyle(color: Colors.grey, fontSize: 11),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              // Popup Action Menu
-                                              PopupMenuButton<String>(
-                                                icon: const Icon(Icons.more_vert, color: Colors.grey),
-                                                onSelected: (val) {
-                                                  if (val == 'suspend') {
-                                                    _toggleSuspendDriver(driver);
-                                                  } else if (val == 'call') {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text('Menghubungi ${driver.phone ?? driver.email}...'),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                                itemBuilder: (ctx) => [
-                                                  PopupMenuItem(
-                                                    value: 'call',
-                                                    child: Row(
-                                                      children: [
-                                                        const Icon(Icons.phone, size: 18),
-                                                        const SizedBox(width: 8),
-                                                        Text('Hubungi (${driver.phone ?? '-'})',
-                                                            style: const TextStyle(fontSize: 13)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  PopupMenuItem(
-                                                    value: 'suspend',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          !isActive
-                                                              ? Icons.check_circle_outline
-                                                              : Icons.block_outlined,
-                                                          size: 18,
-                                                          color: !isActive ? Colors.green : Colors.red,
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Text(
-                                                          !isActive ? 'Aktifkan Akun' : 'Suspend Driver',
-                                                          style: TextStyle(
-                                                            color: !isActive ? Colors.green : Colors.red,
-                                                            fontSize: 13,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-
-                                          const SizedBox(height: 12),
-                                          const Divider(height: 1),
-                                          const SizedBox(height: 10),
-
-                                          // Metrics Info
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                                                  const SizedBox(width: 4),
-                                                  Text('${driver.rating}',
-                                                      style: TextStyle(
-                                                          color: textColorPrimary,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 12)),
-                                                  Text(' (${driver.totalTrips} Trip)',
-                                                      style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                                                ],
-                                              ),
-                                              Text(
-                                                driver.email,
-                                                style: TextStyle(
-                                                    color: textColorPrimary.withOpacity(0.7),
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w500),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
+                          : TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildUserList(mahasiswaList, 'mahasiswa', cardBg, borderColor, textColorPrimary),
+                                _buildUserList(driverMhsList, 'driver_kampus', cardBg, borderColor, textColorPrimary),
+                                _buildUserList(driverUmumList, 'driver_umum', cardBg, borderColor, textColorPrimary),
+                              ],
+                            ),
                 ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildUserList(
+    List<UserModel> users,
+    String role,
+    Color cardBg,
+    Color borderColor,
+    Color textColorPrimary,
+  ) {
+    final filtered = users.where((u) {
+      final matchesSearch = u.name.toLowerCase().contains(_searchQuery) ||
+          (u.nim != null && u.nim!.contains(_searchQuery)) ||
+          (u.nik != null && u.nik!.contains(_searchQuery)) ||
+          (u.facultas != null && u.facultas!.toLowerCase().contains(_searchQuery));
+      return matchesSearch;
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_off_outlined, size: 54, color: Colors.grey.withOpacity(0.5)),
+            const SizedBox(height: 8),
+            Text('Tidak ada data pada kategori ini', style: const TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 80),
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final user = filtered[index];
+        final bool isActive = user.isActive;
+        final bool isDriver = user.role == 'driver_kampus' || user.role == 'driver_umum';
+
+        return InkWell(
+          onTap: () => _showUserDetailModal(user),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: !isActive ? Colors.red.withOpacity(0.4) : borderColor,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: kPrimary.withOpacity(0.2),
+                          backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                              ? NetworkImage(user.photoUrl!)
+                              : null,
+                          child: (user.photoUrl == null || user.photoUrl!.isEmpty)
+                              ? Text(user.name.isNotEmpty ? user.name[0] : 'U',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black))
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: isActive ? Colors.green : Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: cardBg, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name,
+                            style: TextStyle(
+                              color: textColorPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            user.nim != null
+                                ? '${user.nim} • ${user.facultas ?? 'Fakultas'}'
+                                : (user.nik != null ? 'NIK: ${user.nik}' : user.email),
+                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: user.role == 'mahasiswa'
+                                ? Colors.blue.withValues(alpha: 0.12)
+                                : (user.role == 'driver_kampus'
+                                    ? Colors.green.withValues(alpha: 0.12)
+                                    : Colors.amber.withValues(alpha: 0.12)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            user.role == 'mahasiswa'
+                                ? 'Mahasiswa'
+                                : (user.role == 'driver_kampus' ? 'Driver Mhs' : 'Driver Umum'),
+                            style: TextStyle(
+                              color: user.role == 'mahasiswa'
+                                  ? Colors.blue.shade700
+                                  : (user.role == 'driver_kampus'
+                                      ? Colors.green.shade700
+                                      : Colors.amber.shade900),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+
+                // Info Tambahan Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (isDriver) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                          const SizedBox(width: 4),
+                          Text('${user.rating}',
+                              style: TextStyle(
+                                  color: textColorPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text(' (${user.totalTrips} Trip)',
+                              style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                        ],
+                      ),
+                      Text(
+                        user.vehiclePlate != null ? '${user.vehiclePlate}' : 'Lihat Detail',
+                        style: TextStyle(
+                            color: textColorPrimary.withOpacity(0.8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ] else ...[
+                      Text(
+                        'Total Order: ${user.totalTrips}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                      Row(
+                        children: [
+                          Icon(Icons.badge_outlined, size: 14, color: kPrimary),
+                          const SizedBox(width: 4),
+                          Text(
+                            user.ktmStorage == 'firestore' ? 'KTM (Tersedia)' : 'Cek KTM',
+                            style: TextStyle(color: kPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -521,12 +876,12 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
             Icon(Icons.cloud_off_rounded, size: 64, color: Colors.grey.withOpacity(0.5)),
             const SizedBox(height: 16),
             Text(
-              'Belum Ada Driver di Firestore',
+              'Belum Ada Pengguna di Firestore',
               style: TextStyle(color: textColorPrimary, fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 6),
             const Text(
-              'Koleksi `users` di Firebase Console masih kosong untuk role driver. Tekan tombol di bawah untuk membuat data awal driver.',
+              'Koleksi `users` di Firebase Console masih kosong. Tekan tombol di bawah untuk membuat data awal Mahasiswa & Driver.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4),
             ),
@@ -543,40 +898,6 @@ class _AdminDriversScreenState extends State<AdminDriversScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMiniStat(String label, String value, IconData icon, Color color, Color cardBg, Color border,
-      Color textPrimary) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 16),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value, style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 9)),
-              ],
             ),
           ],
         ),
