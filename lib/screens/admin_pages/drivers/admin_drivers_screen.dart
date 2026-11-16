@@ -34,6 +34,14 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
   }
 
   @override
+  void didUpdateWidget(covariant AdminDriversScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      _tabController.animateTo(widget.initialTab.clamp(0, 2));
+    }
+  }
+
+  @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
