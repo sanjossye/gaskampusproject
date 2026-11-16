@@ -234,7 +234,7 @@ class _OnboardingPage extends StatelessWidget {
                 child: Image.asset(
                   data['image']!,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, _, __) => Center(
+                  errorBuilder: (context, _, _) => Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

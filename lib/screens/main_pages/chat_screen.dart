@@ -291,7 +291,7 @@ class ChatScreen extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: replies.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

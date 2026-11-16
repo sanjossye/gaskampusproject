@@ -1252,7 +1252,7 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _filteredOrders.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final order = _filteredOrders[index];
                         return _OrderCard(
@@ -1364,7 +1364,7 @@ class _OrderCard extends StatelessWidget {
                       child: Image.network(
                         order.driverPhoto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           color: Colors.grey[300],
                           child: const Icon(Icons.person),
                         ),

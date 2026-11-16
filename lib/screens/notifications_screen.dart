@@ -32,7 +32,7 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  List<NotificationModel> _notifications = [
+  final List<NotificationModel> _notifications = [
     NotificationModel(
       id: '1',
       title: 'Bonus Berhasil Dicapai!',

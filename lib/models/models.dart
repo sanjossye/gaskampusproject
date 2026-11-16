@@ -2,7 +2,7 @@
 /// ```dart
 /// import 'package:gas_kampusapp/models/models.dart';
 /// ```
-library models;
+library;
 
 export 'user_model.dart';
 export 'order_model.dart';
