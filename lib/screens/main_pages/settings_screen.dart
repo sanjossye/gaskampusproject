@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../main.dart';
 
@@ -20,12 +24,98 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Data Profil Mahasiswa
-  String _name = 'Ahmad Zaki';
-  String _nim = '12345678';
-  String _prodi = 'Sistem Informasi • Fasilkom';
-  String _phone = '+62 812-3456-7890';
-  String _email = 'ahmad.zaki@ui.ac.id';
+  // Data Profil Mahasiswa (dibaca dari Firestore users/{uid})
+  String _name = '';
+  String _nim = '';
+  String _prodi = '';
+  String _phone = '';
+  String _email = '';
+
+  bool _loadingProfile = true;
+  String? _ktmUrl;
+  String? _ktmBase64;
+  bool _loadingKtm = true;
+  String? _profileError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  /// Ambil data mahasiswa yang sedang login dari Firestore.
+  Future<void> _loadProfile() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      setState(() {
+        _loadingProfile = false;
+        _loadingKtm = false;
+        _profileError = 'Kamu belum login sebagai mahasiswa.';
+      });
+      return;
+    }
+
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    try {
+      final doc = await userRef.get();
+      final data = doc.data();
+
+      if (data != null) {
+        setState(() {
+          _name = (data['name'] as String?) ?? '';
+          _nim = (data['nim'] as String?) ?? '';
+          _prodi = (data['facultas'] as String?) ?? '';
+          _phone = _formatPhone(data['phone'] as String?);
+          _email = (data['email'] as String?) ?? '';
+          _ktmUrl = (data['ktmUrl'] as String?)?.trim();
+          if (_ktmUrl != null && _ktmUrl!.isEmpty) _ktmUrl = null;
+          _loadingProfile = false;
+        });
+      } else {
+        setState(() {
+          _loadingProfile = false;
+          _profileError = 'Profil belum ada di database.';
+        });
+      }
+
+      // Jika foto KTM tidak ada di Storage, cek fallback di Firestore
+      if (_ktmUrl == null) {
+        final ktmDoc =
+            await userRef.collection('documents').doc('ktm').get();
+        final base64Data = ktmDoc.data()?['base64'] as String?;
+        if (!mounted) return;
+        setState(() {
+          _ktmBase64 = (base64Data != null && base64Data.isNotEmpty) ? base64Data : null;
+          _loadingKtm = false;
+        });
+      } else if (mounted) {
+        setState(() => _loadingKtm = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingProfile = false;
+        _loadingKtm = false;
+        _profileError = 'Gagal memuat profil dari Firebase.';
+      });
+    }
+  }
+
+  String _formatPhone(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!digits.startsWith('62')) return raw;
+    final rest = digits.substring(2);
+    final buffer = StringBuffer('+62 ');
+    for (var i = 0; i < rest.length; i++) {
+      if (i == 3 || i == 7) buffer.write('-');
+      buffer.write(rest[i]);
+    }
+    return buffer.toString();
+  }
+
+  String _valueOr(String value) => value.trim().isEmpty ? 'Belum terisi' : value;
 
   // Toggle Preferensi Notifikasi
   bool _notifOrder = true;
@@ -242,6 +332,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // ── SECTION 2: DATA MAHASISWA ──
           _buildSectionHeader('INFORMASI AKUN MAHASISWA', tp),
+          if (_loadingProfile)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(
+                minHeight: 2,
+                color: kPrimary,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+          if (_profileError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                _profileError!,
+                style: _body(const Color(0xFFDC2626), 12, FontWeight.w500),
+              ),
+            ),
           Container(
             decoration: BoxDecoration(
               color: cardBg,
@@ -253,7 +360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildInfoTile(
                   icon: Icons.person_outline_rounded,
                   label: 'Nama Lengkap',
-                  value: _name,
+                  value: _valueOr(_name),
                   tp: tp,
                   ts: ts,
                   border: border,
@@ -266,20 +373,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildInfoTile(
                   icon: Icons.badge_outlined,
                   label: 'Nomor Induk Mahasiswa (NIM)',
-                  value: _nim,
+                  value: _valueOr(_nim),
                   tp: tp,
                   ts: ts,
                   border: border,
-                  onTap: () => _showEditDialog(
-                    title: 'Ubah NIM',
-                    currentValue: _nim,
-                    onSave: (val) => setState(() => _nim = val),
-                  ),
                 ),
                 _buildInfoTile(
                   icon: Icons.school_outlined,
                   label: 'Program Studi & Fakultas',
-                  value: _prodi,
+                  value: _valueOr(_prodi),
                   tp: tp,
                   ts: ts,
                   border: border,
@@ -292,7 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildInfoTile(
                   icon: Icons.phone_android_rounded,
                   label: 'Nomor WhatsApp / HP',
-                  value: _phone,
+                  value: _valueOr(_phone),
                   tp: tp,
                   ts: ts,
                   border: border,
@@ -305,7 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildInfoTile(
                   icon: Icons.alternate_email_rounded,
                   label: 'Email Kampus',
-                  value: _email,
+                  value: _valueOr(_email),
                   tp: tp,
                   ts: ts,
                   border: null,
@@ -321,7 +423,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
-          // ── SECTION 3: NOTIFIKASI ──
+          // ── SECTION 3: FOTO KTM ──
+          _buildSectionHeader('FOTO KARTU TANDA MAHASISWA', tp),
+          _buildKtmCard(cardBg, border, tp, ts),
+
+          const SizedBox(height: 24),
+
+          // ── SECTION 4: NOTIFIKASI ──
           _buildSectionHeader('NOTIFIKASI KAMPUS', tp),
           Container(
             decoration: BoxDecoration(
@@ -505,6 +613,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildKtmCard(Color cardBg, Color border, Color tp, Color ts) {
+    Widget content;
+
+    if (_loadingKtm) {
+      content = const SizedBox(
+        height: 180,
+        child: Center(
+          child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2.5),
+        ),
+      );
+    } else if (_ktmUrl != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              _ktmUrl!,
+              height: 200,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) => _ktmPlaceholder(tp, ts, 'Gagal memuat gambar KTM dari Storage.'),
+            ),
+          ),
+        ],
+      );
+    } else if (_ktmBase64 != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(
+              base64Decode(_ktmBase64!),
+              height: 200,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) => _ktmPlaceholder(tp, ts, 'Gagal menampilkan gambar KTM.'),
+            ),
+          ),
+        ],
+      );
+    } else {
+      content = _ktmPlaceholder(tp, ts, 'Foto KTM belum diunggah.');
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+      ),
+      child: content,
+    );
+  }
+
+  Widget _ktmPlaceholder(Color tp, Color ts, String message) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.badge_outlined, size: 40, color: kPrimaryDeep),
+        ),
+        const SizedBox(height: 12),
+        Text(message, textAlign: TextAlign.center, style: _body(ts, 12, FontWeight.w500)),
+      ],
+    );
+  }
+
   Widget _buildSectionHeader(String title, Color tp) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 10),
@@ -553,7 +734,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       themeNotifier.value == ThemeMode.dark
                           ? 'Aktif • Mode gelap ramah di mata & hemat daya'
-                          : 'Ikuti Sistem • Menyesuaikan tema perangkat',
+                          : themeNotifier.value == ThemeMode.light
+                              ? 'Aktif • Mode terang'
+                              : 'Ikuti Sistem • Menyesuaikan tema perangkat',
                       style: _body(ts, 11, FontWeight.w400),
                     ),
                   ],
@@ -566,7 +749,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (val) {
                   setState(() {
                     themeNotifier.value =
-                        val ? ThemeMode.dark : ThemeMode.system;
+                        val ? ThemeMode.dark : ThemeMode.light;
                   });
                 },
               ),
@@ -576,9 +759,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Divider(color: border, height: 1),
           const SizedBox(height: 12),
 
-          // Pilihan 2 Mode: Gelap & Sistem
+          // Pilihan 3 Mode: Terang, Gelap & Sistem
           Row(
             children: [
+              _buildThemePill(
+                label: 'Mode Terang',
+                icon: Icons.light_mode_rounded,
+                selected: themeNotifier.value == ThemeMode.light,
+                onTap: () {
+                  setState(() => themeNotifier.value = ThemeMode.light);
+                },
+                border: border,
+                tp: tp,
+              ),
+              const SizedBox(width: 10),
               _buildThemePill(
                 label: 'Mode Gelap',
                 icon: Icons.dark_mode_rounded,
@@ -660,7 +854,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required Color tp,
     required Color ts,
     required Color? border,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
     return InkWell(
       onTap: onTap,
@@ -683,7 +877,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            Icon(Icons.edit_rounded, color: ts.withValues(alpha: 0.5), size: 16),
+            if (onTap != null)
+              Icon(Icons.edit_rounded, color: ts.withValues(alpha: 0.5), size: 16),
           ],
         ),
       ),
