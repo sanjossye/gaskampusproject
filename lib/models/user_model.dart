@@ -14,6 +14,12 @@ class UserModel {
   final bool isActive;
   final double rating;
   final int totalTrips;
+  final String? ktmUrl;
+  final String? ktmStorage; // 'storage' atau 'firestore' (subkoleksi documents/ktm)
+  final String? ktpUrl;
+  final String? nik;
+  final String? vehiclePlate;
+  final String? vehicleBrand;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -31,6 +37,12 @@ class UserModel {
     this.isActive = true,
     this.rating = 0.0,
     this.totalTrips = 0,
+    this.ktmUrl,
+    this.ktmStorage,
+    this.ktpUrl,
+    this.nik,
+    this.vehiclePlate,
+    this.vehicleBrand,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -50,6 +62,12 @@ class UserModel {
       isActive: data['isActive'] ?? true,
       rating: (data['rating'] ?? 0).toDouble(),
       totalTrips: data['totalTrips'] ?? 0,
+      ktmUrl: data['ktmUrl'],
+      ktmStorage: data['ktmStorage'],
+      ktpUrl: data['ktpUrl'],
+      nik: data['nik'],
+      vehiclePlate: data['vehiclePlate'],
+      vehicleBrand: data['vehicleBrand'],
       createdAt: data['createdAt'] is DateTime
           ? data['createdAt']
           : DateTime.tryParse(data['createdAt']?.toString() ?? '') ?? DateTime.now(),
@@ -73,6 +91,12 @@ class UserModel {
       'isActive': isActive,
       'rating': rating,
       'totalTrips': totalTrips,
+      'ktmUrl': ktmUrl,
+      'ktmStorage': ktmStorage,
+      'ktpUrl': ktpUrl,
+      'nik': nik,
+      'vehiclePlate': vehiclePlate,
+      'vehicleBrand': vehicleBrand,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
