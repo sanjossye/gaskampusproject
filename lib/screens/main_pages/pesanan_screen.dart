@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'service_order_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kSecondaryGreen = Color(0xFF68cd5c);
@@ -38,14 +39,54 @@ class OrderItem {
   });
 }
 
+final List<OrderItem> _allOrders = [
+  const OrderItem(
+    driverName: 'Siti Aminah',
+    driverPhoto:
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
+    serviceType: 'Goride',
+    dateLabel: 'Hari ini, 09:12',
+    from: 'Asrama Mahasiswa',
+    to: 'Gedung Rektorat',
+    price: 'Rp 10.000',
+    status: 'proses',
+  ),
+  const OrderItem(
+    driverName: 'Budi Santoso',
+    driverPhoto:
+        'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
+    serviceType: 'Goride',
+    dateLabel: 'Kemarin, 10:30',
+    from: 'Kampus A',
+    to: 'Kantin Pusat',
+    price: 'Rp 12.000',
+    status: 'selesai',
+  ),
+  const OrderItem(
+    driverName: 'Andi Wijaya',
+    driverPhoto:
+        'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
+    serviceType: 'Gocar',
+    dateLabel: '2 hari lalu, 15:45',
+    from: 'Fakultas Teknik',
+    to: 'Stasiun Kampus',
+    price: 'Rp 25.000',
+    status: 'selesai',
+  ),
+];
+
 class PesananScreen extends StatefulWidget {
   /// Naikkan nilainya dari parent untuk langsung membuka Riwayat Pesanan.
   final int openHistorySignal;
+
+  /// Naikkan nilainya dari parent untuk membuka Halaman Pesanan (Antar).
+  final int openOrderSignal;
   final VoidCallback onBackToHome;
 
   const PesananScreen({
     super.key,
     this.openHistorySignal = 0,
+    this.openOrderSignal = 0,
     required this.onBackToHome,
   });
 
@@ -55,19 +96,27 @@ class PesananScreen extends StatefulWidget {
 
 class _PesananScreenState extends State<PesananScreen>
     with SingleTickerProviderStateMixin {
-  int _mainStep = 2;
+  int _mainStep = 0;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    if (widget.openHistorySignal > 0 &&
+        widget.openHistorySignal > widget.openOrderSignal) {
+      _mainStep = 2;
+    } else {
+      _mainStep = 0;
+    }
   }
 
   @override
   void didUpdateWidget(covariant PesananScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.openHistorySignal != oldWidget.openHistorySignal) {
+    if (widget.openOrderSignal != oldWidget.openOrderSignal) {
+      setState(() => _mainStep = 0);
+    } else if (widget.openHistorySignal != oldWidget.openHistorySignal) {
       setState(() => _mainStep = 2);
     }
   }
@@ -94,7 +143,7 @@ class _PesananScreenState extends State<PesananScreen>
       case 2:
         return _RiwayatScreen(
           tabController: _tabController,
-          onBack: widget.onBackToHome,
+          onBack: () => setState(() => _mainStep = 0),
         );
       default:
         return const SizedBox.shrink();
@@ -118,6 +167,71 @@ class _FindDriverScreen extends StatefulWidget {
 class _FindDriverScreenState extends State<_FindDriverScreen> {
   int _selectedService = 0;
   int _selectedPayment = 0;
+  final TextEditingController _pickupController = TextEditingController(
+    text: 'Fakultas Teknik, Gerbang 2',
+  );
+  final TextEditingController _destinationController = TextEditingController();
+
+  @override
+  void dispose() {
+    _pickupController.dispose();
+    _destinationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleFindDriver() async {
+    final pickup = _pickupController.text.trim().isEmpty
+        ? 'Fakultas Teknik, Gerbang 2'
+        : _pickupController.text.trim();
+    final dest = _destinationController.text.trim().isEmpty
+        ? 'Gedung Kuliah Bersama'
+        : _destinationController.text.trim();
+    final svcLabel = _services[_selectedService]['label'] as String;
+    final fareStr = _services[_selectedService]['fare'] as String;
+    final now = DateTime.now();
+    String docId = 'ride_${now.millisecondsSinceEpoch}';
+
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final docRef = await FirebaseFirestore.instance
+            .collection('orders')
+            .add({
+              'passengerId': uid,
+              'driverId': null,
+              'serviceType': 'antar',
+              'status': 'pending',
+              'items': 'Layanan Antar ($svcLabel)',
+              'originAddress': pickup,
+              'destinationAddress': dest,
+              'note': '',
+              'fareAmount': _selectedService == 1 ? 20000 : 10000,
+              'paymentMethod': 'wallet',
+              'createdAt': now.toIso8601String(),
+            })
+            .timeout(const Duration(seconds: 6));
+        docId = docRef.id;
+      }
+    } catch (_) {}
+
+    SessionOrderStore.addOrder(
+      LocalOrderRecord(
+        id: docId,
+        serviceType: 'antar',
+        items: 'Layanan Antar ($svcLabel)',
+        originAddress: pickup,
+        destinationAddress: dest,
+        note: '',
+        status: 'pending',
+        price: fareStr,
+        createdAt: now,
+      ),
+    );
+
+    if (mounted) {
+      widget.onFindDriver();
+    }
+  }
 
   static const _services = [
     {
@@ -513,390 +627,419 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     final pm = _paymentMethods[_selectedPayment];
     final pmColor = pm['color'] as Color;
 
-    return Scaffold(
-      backgroundColor: bg,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 24,
-              offset: const Offset(0, -8),
-            ),
-          ],
-        ),
-        padding: EdgeInsets.fromLTRB(
-          24,
-          24,
-          24,
-          MediaQuery.of(context).padding.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-
-            const SizedBox(height: 20),
-            Row(
-              children: List.generate(_services.length, (i) {
-                final s = _services[i];
-                final isSel = _selectedService == i;
-                final isLainnya = i == _services.length - 1;
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      if (isLainnya) {
-                        _showLainnyaSheet(
-                          context,
-                          isDark,
-                          textColorPrimary,
-                          textColorSecondary,
-                          cardBg,
-                          borderColor,
-                        );
-                      } else {
-                        setState(() => _selectedService = i);
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: EdgeInsets.only(
-                        right: i < _services.length - 1 ? 8 : 0,
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSel
-                            ? kPrimary
-                            : (isDark
-                                  ? const Color(0xFF232A18)
-                                  : const Color(0xFFF1F5F0)),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSel ? Colors.transparent : borderColor,
-                        ),
-                        boxShadow: isSel
-                            ? [
-                                BoxShadow(
-                                  color: kPrimary.withOpacity(0.25),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : [],
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(
-                            s['icon'] as IconData,
-                            size: 26,
-                            color: isSel
-                                ? const Color(0xFF0F172A)
-                                : (isDark ? Colors.white54 : Colors.black38),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            s['label'] as String,
-                            style: _body(
-                              isSel
-                                  ? const Color(0xFF0F172A)
-                                  : (isDark ? Colors.white54 : Colors.black38),
-                              11,
-                              isSel ? FontWeight.bold : FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Fare + Time strip ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+    return Container(
+      color: bg,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.payments_outlined, color: kPrimary, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    svc['fare'] as String,
-                    style: _body(textColorPrimary, 16, FontWeight.bold),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 18,
-                    margin: const EdgeInsets.symmetric(horizontal: 10),
-                    color: borderColor,
-                  ),
-                  Icon(
-                    Icons.schedule_rounded,
-                    color: textColorSecondary,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${svc['time']} mnt',
-                    style: _body(textColorSecondary, 13, FontWeight.w500),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.local_fire_department_rounded,
-                    color: const Color(0xFFFF6B35),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Cepat!',
-                    style: _body(const Color(0xFFFF6B35), 12, FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Payment selector row ──
-            GestureDetector(
-              onTap: () => _showPaymentSheet(
-                context,
-                isDark,
-                textColorPrimary,
-                textColorSecondary,
-                cardBg,
-                borderColor,
-              ),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: pmColor.withOpacity(isDark ? 0.12 : 0.07),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: pmColor.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: pmColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        pm['icon'] as IconData,
-                        color: Colors.white,
-                        size: 16,
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
                     ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          pm['label'] as String,
-                          style: _body(textColorPrimary, 13, FontWeight.bold),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: Text(
+                            'Pesan Antar',
+                            textAlign: TextAlign.center,
+                            style: _body(textColorPrimary, 18, FontWeight.bold),
+                          ),
                         ),
-                        Text(
-                          pm['sub'] as String,
-                          style: _body(
-                            textColorSecondary,
-                            11,
-                            FontWeight.normal,
+                        GestureDetector(
+                          onTap: widget.onShowHistory,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kPrimary.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.receipt_long_rounded,
+                                  color: textColorPrimary,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Riwayat',
+                                  style: _body(
+                                    textColorPrimary,
+                                    12,
+                                    FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: pmColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Ganti',
-                            style: _body(pmColor, 11, FontWeight.bold),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'LOKASI JEMPUT (PICKUP)',
+                          style: _body(
+                            textColorSecondary,
+                            12,
+                            FontWeight.w600,
+                            ls: 1,
                           ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: pmColor,
-                            size: 14,
+                        ),
+                        const SizedBox(height: 10),
+                        _locationField(
+                          icon: Icons.my_location,
+                          iconColor: kPrimary,
+                          hint: 'Lokasi jemput saat ini',
+                          controller: _pickupController,
+                          inputBg: inputBg,
+                          borderColor: borderColor,
+                          textColorPrimary: textColorPrimary,
+                          textColorSecondary: textColorSecondary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'TUJUAN PENGANTARAN (DESTINATION)',
+                          style: _body(
+                            textColorSecondary,
+                            12,
+                            FontWeight.w600,
+                            ls: 1,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 10),
+                        _locationField(
+                          icon: Icons.location_on_outlined,
+                          iconColor: textColorSecondary,
+                          hint: 'Mau diantar ke mana? (mis. Fakultas Teknik)',
+                          controller: _destinationController,
+                          inputBg: inputBg,
+                          borderColor: borderColor,
+                          textColorPrimary: textColorPrimary,
+                          textColorSecondary: textColorSecondary,
+                        ),
+                        const SizedBox(height: 8),
+                        _historyItem(
+                          Icons.history,
+                          'Gedung Fakultas Teknik Selatan',
+                          textColorSecondary,
+                          isDark,
+                          onTap: () => setState(
+                            () => _destinationController.text =
+                                'Gedung Fakultas Teknik Selatan',
+                          ),
+                        ),
+                        _historyItem(
+                          Icons.history,
+                          'Asrama Mahasiswa Blok C',
+                          textColorSecondary,
+                          isDark,
+                          onTap: () => setState(
+                            () => _destinationController.text =
+                                'Asrama Mahasiswa Blok C',
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            const SizedBox(height: 24),
-
-            GestureDetector(
-              onTap: widget.onFindDriver,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: BoxDecoration(
-                  color: kPrimary,
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.search_rounded,
-                      color: Color(0xFF0F172A),
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Cari Driver',
-                      style: _body(
-                        const Color(0xFF0F172A),
-                        17,
-                        FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Text(
-                        'Gojek Kampus',
-                        textAlign: TextAlign.center,
-                        style: _body(textColorPrimary, 18, FontWeight.bold),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: widget.onShowHistory,
-                      child: Icon(
-                        Icons.receipt_long_rounded,
-                        color: textColorPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PICKUP LOCATION',
-                      style: _body(
-                        textColorSecondary,
-                        12,
-                        FontWeight.w600,
-                        ls: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _locationField(
-                      icon: Icons.my_location,
-                      iconColor: kPrimary,
-                      hint: 'Current Location',
-                      prefilled: 'Fakultas Teknik, Gerbang 2',
-                      inputBg: inputBg,
-                      borderColor: borderColor,
-                      textColorPrimary: textColorPrimary,
-                      textColorSecondary: textColorSecondary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'DESTINATION',
-                      style: _body(
-                        textColorSecondary,
-                        12,
-                        FontWeight.w600,
-                        ls: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _locationField(
-                      icon: Icons.location_on_outlined,
-                      iconColor: textColorSecondary,
-                      hint: 'Where to? (e.g. Faculty of Engineering)',
-                      prefilled: null,
-                      inputBg: inputBg,
-                      borderColor: borderColor,
-                      textColorPrimary: textColorPrimary,
-                      textColorSecondary: textColorSecondary,
-                    ),
-                    const SizedBox(height: 8),
-                    _historyItem(
-                      Icons.history,
-                      'Engineering Faculty South Hall',
-                      textColorSecondary,
-                      isDark,
-                    ),
-                    _historyItem(
-                      Icons.history,
-                      'Student Dormitory Block C',
-                      textColorSecondary,
-                      isDark,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
           ),
-        ),
+          Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 24,
+                  offset: const Offset(0, -8),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: List.generate(_services.length, (i) {
+                    final s = _services[i];
+                    final isSel = _selectedService == i;
+                    final isLainnya = i == _services.length - 1;
+
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (isLainnya) {
+                            _showLainnyaSheet(
+                              context,
+                              isDark,
+                              textColorPrimary,
+                              textColorSecondary,
+                              cardBg,
+                              borderColor,
+                            );
+                          } else {
+                            setState(() => _selectedService = i);
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: EdgeInsets.only(
+                            right: i < _services.length - 1 ? 8 : 0,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? kPrimary
+                                : (isDark
+                                      ? const Color(0xFF232A18)
+                                      : const Color(0xFFF1F5F0)),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSel ? Colors.transparent : borderColor,
+                            ),
+                            boxShadow: isSel
+                                ? [
+                                    BoxShadow(
+                                      color: kPrimary.withOpacity(0.25),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                s['icon'] as IconData,
+                                size: 26,
+                                color: isSel
+                                    ? const Color(0xFF0F172A)
+                                    : (isDark
+                                          ? Colors.white54
+                                          : Colors.black38),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                s['label'] as String,
+                                style: _body(
+                                  isSel
+                                      ? const Color(0xFF0F172A)
+                                      : (isDark
+                                            ? Colors.white54
+                                            : Colors.black38),
+                                  11,
+                                  isSel ? FontWeight.bold : FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Fare + Time strip ──
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.payments_outlined, color: kPrimary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        svc['fare'] as String,
+                        style: _body(textColorPrimary, 16, FontWeight.bold),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 18,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: borderColor,
+                      ),
+                      Icon(
+                        Icons.schedule_rounded,
+                        color: textColorSecondary,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${svc['time']} mnt',
+                        style: _body(textColorSecondary, 13, FontWeight.w500),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Color(0xFFFF6B35),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Cepat!',
+                        style: _body(
+                          const Color(0xFFFF6B35),
+                          12,
+                          FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // ── Payment selector row ──
+                GestureDetector(
+                  onTap: () => _showPaymentSheet(
+                    context,
+                    isDark,
+                    textColorPrimary,
+                    textColorSecondary,
+                    cardBg,
+                    borderColor,
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: pmColor.withOpacity(isDark ? 0.12 : 0.07),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: pmColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: pmColor,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            pm['icon'] as IconData,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pm['label'] as String,
+                              style: _body(
+                                textColorPrimary,
+                                13,
+                                FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              pm['sub'] as String,
+                              style: _body(
+                                textColorSecondary,
+                                11,
+                                FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: pmColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Ganti',
+                                style: _body(pmColor, 11, FontWeight.bold),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: pmColor,
+                                size: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                GestureDetector(
+                  onTap: _handleFindDriver,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: kPrimary,
+                      borderRadius: BorderRadius.circular(99),
+                      boxShadow: [
+                        BoxShadow(
+                          color: kPrimary.withOpacity(0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.search_rounded,
+                          color: Color(0xFF0F172A),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cari Driver',
+                          style: _body(
+                            const Color(0xFF0F172A),
+                            17,
+                            FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -905,7 +1048,7 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     required IconData icon,
     required Color iconColor,
     required String hint,
-    required String? prefilled,
+    required TextEditingController controller,
     required Color inputBg,
     required Color borderColor,
     required Color textColorPrimary,
@@ -924,14 +1067,12 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
+              controller: controller,
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: hint,
                 hintStyle: _body(textColorSecondary, 14, FontWeight.w500),
               ),
-              controller: prefilled != null
-                  ? TextEditingController(text: prefilled)
-                  : null,
               style: _body(textColorPrimary, 14, FontWeight.w500),
             ),
           ),
@@ -940,22 +1081,32 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     );
   }
 
-  Widget _historyItem(IconData icon, String text, Color color, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 12),
-          Text(
-            text,
-            style: _body(
-              isDark ? Colors.white70 : Colors.black87,
-              14,
-              FontWeight.normal,
+  Widget _historyItem(
+    IconData icon,
+    String text,
+    Color color,
+    bool isDark, {
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 12),
+            Text(
+              text,
+              style: _body(
+                isDark ? Colors.white70 : Colors.black87,
+                14,
+                FontWeight.normal,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1385,7 +1536,14 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
   int _selectedTab = 0;
 
   List<OrderItem> get _filteredOrders {
-    return const [];
+    switch (_selectedTab) {
+      case 1:
+        return _allOrders.where((o) => o.status == 'proses').toList();
+      case 2:
+        return _allOrders.where((o) => o.status == 'selesai').toList();
+      default:
+        return _allOrders;
+    }
   }
 
   @override
@@ -1401,9 +1559,9 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
         ? const Color(0xFF2A3518)
         : const Color(0xFFE2E8F0);
 
-    return Scaffold(
-      backgroundColor: bg,
-      body: Column(
+    return Container(
+      color: bg,
+      child: Column(
         children: [
           Container(
             color: isDark
@@ -1499,31 +1657,15 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                         )
                         .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'Gagal memuat riwayat pesanan: ${snapshot.error}',
-                        textAlign: TextAlign.center,
-                        style: _body(textColorSecondary, 14, FontWeight.normal),
-                      ),
-                    ),
-                  );
-                }
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
+                final seenIds = <String>{};
                 final serviceOrders = <_ServiceOrderData>[];
+
+                // 1. Pesanan dari Firestore
                 if (snapshot.hasData) {
                   for (final doc in snapshot.data!.docs) {
                     final data = doc.data();
-                    final type = data['serviceType'];
-                    if (type != 'makan' && type != 'titip') continue;
-
                     final item = _ServiceOrderData.fromMap(doc.id, data);
+                    seenIds.add(doc.id);
                     final isDone =
                         item.status == 'completed' ||
                         item.status == 'cancelled';
@@ -1532,6 +1674,27 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                     serviceOrders.add(item);
                   }
                 }
+
+                // 2. Pesanan dari sesi lokal (SessionOrderStore) yang belum ada di snapshot
+                for (final loc in SessionOrderStore.orders) {
+                  if (seenIds.contains(loc.id)) continue;
+                  final item = _ServiceOrderData(
+                    id: loc.id,
+                    serviceType: loc.serviceType,
+                    items: loc.items,
+                    originAddress: loc.originAddress,
+                    destinationAddress: loc.destinationAddress,
+                    note: loc.note,
+                    status: loc.status,
+                    createdAt: loc.createdAt,
+                  );
+                  final isDone =
+                      item.status == 'completed' || item.status == 'cancelled';
+                  if (_selectedTab == 1 && isDone) continue;
+                  if (_selectedTab == 2 && !isDone) continue;
+                  serviceOrders.add(item);
+                }
+
                 serviceOrders.sort(
                   (a, b) => b.createdAt.compareTo(a.createdAt),
                 );
@@ -1846,8 +2009,14 @@ class _ServiceOrderData {
   }
 
   bool get isMakan => serviceType == 'makan';
+  bool get isTitip => serviceType == 'titip';
+  bool get isAntar => serviceType == 'antar';
 
-  String get title => isMakan ? 'Pesanan Makan' : 'Titip Barang';
+  String get title {
+    if (isMakan) return 'Pesanan Makan';
+    if (isTitip) return 'Titip Barang';
+    return 'Pesan Antar';
+  }
 
   String get statusLabel {
     switch (status) {
@@ -1895,7 +2064,7 @@ class _ServiceOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = order.isMakan
         ? const Color(0xFFFF9F43)
-        : const Color(0xFF54A0FF);
+        : (order.isTitip ? const Color(0xFF54A0FF) : kPrimary);
     final isFinished =
         order.status == 'completed' || order.status == 'cancelled';
 
@@ -1931,8 +2100,10 @@ class _ServiceOrderCard extends StatelessWidget {
                 child: Icon(
                   order.isMakan
                       ? Icons.restaurant_rounded
-                      : Icons.shopping_bag_rounded,
-                  color: accent,
+                      : (order.isTitip
+                            ? Icons.shopping_bag_rounded
+                            : Icons.motorcycle_rounded),
+                  color: order.isAntar ? textColorPrimary : accent,
                   size: 22,
                 ),
               ),
@@ -1976,18 +2147,27 @@ class _ServiceOrderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _detailRow(
-            order.isMakan
-                ? Icons.restaurant_menu_rounded
-                : Icons.inventory_2_outlined,
-            order.isMakan ? 'Makanan dipesan' : 'Barang dititip',
-            order.items,
-          ),
+          if (order.items.isNotEmpty)
+            _detailRow(
+              order.isMakan
+                  ? Icons.restaurant_menu_rounded
+                  : (order.isTitip
+                        ? Icons.inventory_2_outlined
+                        : Icons.two_wheeler_rounded),
+              order.isMakan
+                  ? 'Makanan dipesan'
+                  : (order.isTitip ? 'Barang dititip' : 'Layanan'),
+              order.items,
+            ),
           if (order.originAddress.isNotEmpty) ...[
             const SizedBox(height: 8),
             _detailRow(
-              Icons.storefront_outlined,
-              order.isMakan ? 'Alamat warung / kantin' : 'Alamat asal',
+              order.isMakan
+                  ? Icons.storefront_outlined
+                  : Icons.my_location_rounded,
+              order.isMakan
+                  ? 'Alamat warung / kantin'
+                  : (order.isTitip ? 'Dari alamat' : 'Lokasi jemput'),
               order.originAddress,
             ),
           ],
@@ -1995,7 +2175,7 @@ class _ServiceOrderCard extends StatelessWidget {
             const SizedBox(height: 8),
             _detailRow(
               Icons.location_on_outlined,
-              order.isMakan ? 'Alamat antar' : 'Antar ke',
+              order.isMakan ? 'Alamat pengantaran' : 'Alamat tujuan',
               order.destinationAddress,
             ),
           ],

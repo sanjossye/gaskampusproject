@@ -201,7 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           if (_isStudentRole) ...[
                             _buildInputField(
                               label: 'Nomor Induk Mahasiswa (NIM)',
-                              hint: '12345678',
+                              hint: 'Contoh: 12345678',
                               controller: _nimController,
                               bg: inputBg,
                               textColor: textPrimary,
@@ -218,7 +218,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ] else ...[
                             _buildInputField(
-                              label: 'NIK KTP',
+                              label: 'Nomor Induk Kependudukan (NIK KTP)',
                               hint: '16 digit sesuai KTP',
                               controller: _nikController,
                               bg: inputBg,
@@ -227,9 +227,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               keyboardType: TextInputType.number,
                               validator: (value) {
                                 final v = (value ?? '').trim();
-                                if (v.isEmpty) return 'NIK wajib diisi.';
-                                if (!RegExp(r'^\d{16}$').hasMatch(v)) {
-                                  return 'NIK harus 16 digit angka.';
+                                if (v.isEmpty) return 'NIK KTP wajib diisi.';
+                                if (!RegExp(r'^\d{8,20}$').hasMatch(v)) {
+                                  return 'NIK KTP tidak valid (8-20 digit angka).';
                                 }
                                 return null;
                               },
@@ -300,8 +300,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           // Info pribadi
                           Text(
                             _isDriverUmum
-                                ? 'Informasi Driver Umum'
-                                : 'Informasi Mahasiswa',
+                                ? 'Informasi Driver Umum (KTP)'
+                                : (_isDriverMahasiswa
+                                      ? 'Informasi Driver Mahasiswa (KTM)'
+                                      : 'Informasi Mahasiswa (KTM)'),
                             style: TextStyle(
                               color: textPrimary,
                               fontSize: 20,
@@ -518,9 +520,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final phone = _buildPhoneNumber();
       final username = _isStudentRole
           ? _nimController.text.trim()
-          : phone.replaceAll(RegExp(r'[^0-9]'), '');
+          : _nikController.text.trim();
 
-      // 1. Buat akun di Firebase Auth + profil di Firestore (users & login_index)
+      // 1. Buat akun di Firebase Auth + profil di Firestore (users, wallets & login_index)
       final user = await _authService
           .register(
             email: _emailController.text.trim(),
@@ -529,6 +531,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             username: username,
             role: _role,
             nim: _isStudentRole ? _nimController.text.trim() : null,
+            nik: _isDriverUmum ? _nikController.text.trim() : null,
             phone: phone,
             faculty: _isStudentRole ? _facultyController.text.trim() : null,
           )
@@ -550,72 +553,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final urlField = _isDriverUmum ? 'ktpUrl' : 'ktmUrl';
       final storageField = _isDriverUmum ? 'ktpStorage' : 'ktmStorage';
 
-      // 2. Upload berkas identitas ke Firebase Storage
-      try {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child(folder)
-            .child(user.uid)
-            .child(
-              '${folder}_${DateTime.now().millisecondsSinceEpoch}.$extension',
-            );
-
-        await storageRef
-            .putData(_docBytes!, SettableMetadata(contentType: contentType))
-            .timeout(const Duration(seconds: 20));
-        final downloadUrl = await storageRef.getDownloadURL().timeout(
-          const Duration(seconds: 15),
-        );
-
-        // 3. Simpan URL berkas ke dokumen user
-        await userRef
-            .update({
-              urlField: downloadUrl,
-              storageField: 'storage',
-              '${folder}UploadedAt': nowIso,
-            })
-            .timeout(const Duration(seconds: 20));
-      } catch (storageError) {
-        // Fallback: simpan foto langsung di Firestore (subkoleksi users/{uid}/documents)
-        // supaya foto tetap tersimpan walau Firebase Storage belum aktif.
-        try {
-          if (_docBytes!.length > 700 * 1024) {
-            throw Exception('Foto terlalu besar untuk penyimpanan cadangan.');
-          }
-          await userRef
-              .collection('documents')
-              .doc(folder)
-              .set({
-                'fileName': _docImage!.name,
-                'contentType': contentType,
-                'base64': base64Encode(_docBytes!),
-                'uploadedAt': nowIso,
-              })
-              .timeout(const Duration(seconds: 20));
-          await userRef
-              .update({
-                storageField: 'firestore',
-                '${folder}UploadedAt': nowIso,
-              })
-              .timeout(const Duration(seconds: 20));
-        } catch (firestoreError) {
-          throw Exception(
-            'Gagal menyimpan foto $_docLabel. '
-            'Penyimpanan utama: $storageError; penyimpanan cadangan: $firestoreError',
-          );
-        }
-      }
-
-      // 4. Simpan data tambahan sesuai peran
-      final extra = <String, dynamic>{};
-      if (_isDriverUmum) {
-        extra['nik'] = _nikController.text.trim();
-      }
-      if (extra.isNotEmpty) {
-        await userRef.update(extra).timeout(const Duration(seconds: 20));
-      }
-
-      // 5. Simpan jadwal kuliah Senin–Jumat ke users/{uid}/schedules
+      // 2. Simpan jadwal kuliah Senin–Jumat ke users/{uid}/schedules (untuk Mahasiswa & Driver Mahasiswa)
       if (_isStudentRole) {
         final batch = FirebaseFirestore.instance.batch();
         batch.update(userRef, {'hasSchedule': true});
@@ -637,8 +575,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await batch.commit().timeout(const Duration(seconds: 30));
       }
 
+      // 3. Upload berkas identitas (KTM / KTP) ke Firebase Storage atau fallback ke Firestore
+      try {
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child(folder)
+            .child(user.uid)
+            .child(
+              '${folder}_${DateTime.now().millisecondsSinceEpoch}.$extension',
+            );
+
+        await storageRef
+            .putData(_docBytes!, SettableMetadata(contentType: contentType))
+            .timeout(const Duration(seconds: 15));
+        final downloadUrl = await storageRef.getDownloadURL().timeout(
+          const Duration(seconds: 12),
+        );
+
+        await userRef
+            .update({
+              urlField: downloadUrl,
+              storageField: 'storage',
+              '${folder}UploadedAt': nowIso,
+            })
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {
+        // Fallback: simpan foto langsung di Firestore (subkoleksi users/{uid}/documents)
+        try {
+          if (_docBytes!.length <= 750 * 1024) {
+            await userRef
+                .collection('documents')
+                .doc(folder)
+                .set({
+                  'fileName': _docImage!.name,
+                  'contentType': contentType,
+                  'base64': base64Encode(_docBytes!),
+                  'uploadedAt': nowIso,
+                })
+                .timeout(const Duration(seconds: 15));
+          }
+          await userRef
+              .update({
+                storageField: 'firestore',
+                '${folder}UploadedAt': nowIso,
+              })
+              .timeout(const Duration(seconds: 15));
+        } catch (_) {}
+      }
+
       if (!mounted) return;
-      _showSnack('Pendaftaran berhasil', Colors.green);
+      _showSnack('Pendaftaran berhasil! Silakan masuk.', Colors.green);
       Navigator.pop(context, true);
     } catch (e) {
       _showSnack(AuthService.readableError(e), Colors.red);
@@ -1195,8 +1181,8 @@ class _AddCourseDialogState extends State<_AddCourseDialog> {
   final _nameController = TextEditingController();
   final _roomController = TextEditingController();
 
-  TimeOfDay? _start;
-  TimeOfDay? _end;
+  TimeOfDay? _start = const TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay? _end = const TimeOfDay(hour: 10, minute: 0);
   String? _error;
 
   @override

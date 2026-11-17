@@ -52,6 +52,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Sinyal untuk membuka tab Riwayat Pesanan dari Beranda.
   int _historySignal = 0;
+
+  /// Sinyal untuk membuka Halaman Pesanan (Antar) dari Beranda.
+  int _orderSignal = 0;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
 
@@ -172,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (_navIndex == 2) {
       return pesanan.PesananScreen(
         openHistorySignal: _historySignal,
+        openOrderSignal: _orderSignal,
         onBackToHome: () => setState(() => _navIndex = 0),
       );
     }
@@ -338,7 +342,13 @@ class _HomeScreenState extends State<HomeScreen>
                 onTap: () => showTopUpModal(context),
               ),
               const SizedBox(width: 8),
-              _buildWalletAction(Icons.history_rounded),
+              _buildWalletAction(
+                Icons.history_rounded,
+                onTap: () => setState(() {
+                  _navIndex = 2;
+                  _historySignal++;
+                }),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -421,37 +431,46 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildSearchBar(Color ts, Color border, bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark ? kCardDark : kCardLight,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: 14),
-            Icon(Icons.search_rounded, color: ts, size: 19),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Mau ke mana hari ini?',
-                style: _body(ts, 13, FontWeight.w400),
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _navIndex = 2;
+          _orderSignal++;
+        }),
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: isDark ? kCardDark : kCardLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: border),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 14),
+              Icon(Icons.search_rounded, color: ts, size: 19),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Mau ke mana hari ini?',
+                  style: _body(ts, 13, FontWeight.w400),
+                ),
               ),
-            ),
-            Container(
-              margin: const EdgeInsets.all(6),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: kPrimary,
-                borderRadius: BorderRadius.circular(99),
+              Container(
+                margin: const EdgeInsets.all(6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: kPrimary,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  'Cari',
+                  style: _body(kTextOnPrimary, 12, FontWeight.bold),
+                ),
               ),
-              child: Text(
-                'Cari',
-                style: _body(kTextOnPrimary, 12, FontWeight.bold),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -500,7 +519,10 @@ class _HomeScreenState extends State<HomeScreen>
         Icons.motorcycle_rounded,
         kPrimary,
         kTextOnPrimary,
-        onTap: () => setState(() => _navIndex = 2),
+        onTap: () => setState(() {
+          _navIndex = 2;
+          _orderSignal++;
+        }),
       ),
       _ServiceItem(
         'Makan',

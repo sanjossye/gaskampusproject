@@ -72,6 +72,7 @@ class AuthService {
     required String username,
     required String role, // mahasiswa, driver_kampus, driver_umum, admin
     String? nim,
+    String? nik,
     String? phone,
     String? faculty,
   }) async {
@@ -89,6 +90,9 @@ class AuthService {
     if (nim != null && nim.isNotEmpty) {
       identifiers[normalizeIdentifier(nim)] = 'nim';
     }
+    if (nik != null && nik.isNotEmpty) {
+      identifiers[normalizeIdentifier(nik)] = 'nik';
+    }
     if (phone != null && phone.isNotEmpty) {
       identifiers[normalizeIdentifier(phone)] = 'phone';
     }
@@ -100,6 +104,7 @@ class AuthService {
         final label = switch (entry.value) {
           'username' => 'Username',
           'nim' => 'NIM',
+          'nik' => 'NIK',
           'phone' => 'Nomor HP',
           _ => 'Identifier',
         };
@@ -124,6 +129,7 @@ class AuthService {
       email: email.trim().toLowerCase(),
       username: normalizedUsername,
       nim: nim,
+      nik: nik,
       phone: normalizedPhone,
       role: role,
       facultas: faculty,
@@ -132,9 +138,15 @@ class AuthService {
       updatedAt: now,
     );
 
-    // Tulis users/{uid} dan semua dokumen login_index dalam satu WriteBatch
+    // Tulis users/{uid}, wallets/{uid}, dan semua dokumen login_index dalam satu WriteBatch
     final batch = _db.batch();
     batch.set(_users.doc(user.uid), user.toMap());
+    batch.set(_db.collection('wallets').doc(user.uid), {
+      'userId': user.uid,
+      'balance': role == 'mahasiswa' ? 50000 : 0,
+      'coins': 0,
+      'updatedAt': now.toIso8601String(),
+    });
 
     for (final entry in identifiers.entries) {
       batch.set(_loginIndex.doc(entry.key), {
