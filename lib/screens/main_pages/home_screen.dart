@@ -3,29 +3,41 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'promo_screen.dart';
-import 'pesanan_screen.dart';
+import 'pesanan_screen.dart' as pesanan;
 import 'profile_screen.dart';
 import 'topup_modal.dart';
 import 'nearby_drivers_modal.dart';
+import 'service_order_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
-const Color kPrimary       = Color(0xFFC0F637);
-const Color kPrimaryDeep   = Color(0xFF8DBF1A);
-const Color kBgDark        = Color(0xFF0E1009);
-const Color kBgLight       = Color(0xFFF5F7F0);
-const Color kSurfaceDark   = Color(0xFF181E10);
-const Color kCardDark      = Color(0xFF1C2414);
-const Color kCardLight     = Color(0xFFFFFFFF);
-const Color kBorderDark    = Color(0xFF2A3518);
-const Color kBorderLight   = Color(0xFFE8EDE0);
+const Color kPrimary = Color(0xFFC0F637);
+const Color kPrimaryDeep = Color(0xFF8DBF1A);
+const Color kBgDark = Color(0xFF0E1009);
+const Color kBgLight = Color(0xFFF5F7F0);
+const Color kSurfaceDark = Color(0xFF181E10);
+const Color kCardDark = Color(0xFF1C2414);
+const Color kCardLight = Color(0xFFFFFFFF);
+const Color kBorderDark = Color(0xFF2A3518);
+const Color kBorderLight = Color(0xFFE8EDE0);
 const Color kTextOnPrimary = Color(0xFF0A0F02);
 
 // ── Typography Helpers ─────────────────────────────────────────────────────
-TextStyle _display(Color c, double sz, FontWeight w, {double? ls}) =>
-    TextStyle(color: c, fontSize: sz, fontWeight: w, letterSpacing: ls, fontFamily: 'serif');
+TextStyle _display(Color c, double sz, FontWeight w, {double? ls}) => TextStyle(
+  color: c,
+  fontSize: sz,
+  fontWeight: w,
+  letterSpacing: ls,
+  fontFamily: 'serif',
+);
 
 TextStyle _body(Color c, double sz, FontWeight w, {double? ls, double? h}) =>
-    TextStyle(color: c, fontSize: sz, fontWeight: w, letterSpacing: ls, height: h);
+    TextStyle(
+      color: c,
+      fontSize: sz,
+      fontWeight: w,
+      letterSpacing: ls,
+      height: h,
+    );
 
 // ══════════════════════════════════════════════════════════════════════════════
 class HomeScreen extends StatefulWidget {
@@ -37,6 +49,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   int _navIndex = 0;
+
+  /// Sinyal untuk membuka tab Riwayat Pesanan dari Beranda.
+  int _historySignal = 0;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
 
@@ -73,15 +88,17 @@ class _HomeScreenState extends State<HomeScreen>
           .doc(user.uid)
           .snapshots()
           .listen((doc) {
-        if (doc.exists && mounted) {
-          final data = doc.data();
-          if (data != null && data['name'] != null && (data['name'] as String).isNotEmpty) {
-            setState(() {
-              _userName = data['name'];
-            });
-          }
-        }
-      });
+            if (doc.exists && mounted) {
+              final data = doc.data();
+              if (data != null &&
+                  data['name'] != null &&
+                  (data['name'] as String).isNotEmpty) {
+                setState(() {
+                  _userName = data['name'];
+                });
+              }
+            }
+          });
 
       // Ambil saldo dan koin dari wallets/{uid}
       FirebaseFirestore.instance
@@ -89,20 +106,20 @@ class _HomeScreenState extends State<HomeScreen>
           .doc(user.uid)
           .snapshots()
           .listen((doc) {
-        if (doc.exists && mounted) {
-          final data = doc.data();
-          if (data != null) {
-            setState(() {
-              if (data['balance'] != null) {
-                _walletBalance = (data['balance'] as num).toInt();
+            if (doc.exists && mounted) {
+              final data = doc.data();
+              if (data != null) {
+                setState(() {
+                  if (data['balance'] != null) {
+                    _walletBalance = (data['balance'] as num).toInt();
+                  }
+                  if (data['coins'] != null) {
+                    _coinBalance = (data['coins'] as num).toInt();
+                  }
+                });
               }
-              if (data['coins'] != null) {
-                _coinBalance = (data['coins'] as num).toInt();
-              }
-            });
-          }
-        }
-      });
+            }
+          });
     }
   }
 
@@ -128,10 +145,10 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     // ── Hapus 'surface' & 'card' yang tidak terpakai ──
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg     = isDark ? kBgDark     : kBgLight;
+    final bg = isDark ? kBgDark : kBgLight;
     final border = isDark ? kBorderDark : kBorderLight;
-    final tp     = isDark ? Colors.white           : const Color(0xFF0F1A02);
-    final ts     = isDark ? const Color(0xFF8A9E70) : const Color(0xFF6B7A5A);
+    final tp = isDark ? Colors.white : const Color(0xFF0F1A02);
+    final ts = isDark ? const Color(0xFF8A9E70) : const Color(0xFF6B7A5A);
 
     SystemChrome.setSystemUIOverlayStyle(
       isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
@@ -141,9 +158,7 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: bg,
       body: FadeTransition(
         opacity: _fadeAnim,
-        child: SafeArea(
-          child: _buildBodyContent(tp, ts, isDark, border),
-        ),
+        child: SafeArea(child: _buildBodyContent(tp, ts, isDark, border)),
       ),
       bottomNavigationBar: _buildBottomNav(isDark),
     );
@@ -154,7 +169,12 @@ class _HomeScreenState extends State<HomeScreen>
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildBodyContent(Color tp, Color ts, bool isDark, Color border) {
     if (_navIndex == 1) return const PromoScreen();
-    if (_navIndex == 2) return const PesananScreen();
+    if (_navIndex == 2) {
+      return pesanan.PesananScreen(
+        openHistorySignal: _historySignal,
+        onBackToHome: () => setState(() => _navIndex = 0),
+      );
+    }
     if (_navIndex == 3) {
       return ProfileScreen(
         onNavigateToPromo: () {
@@ -206,16 +226,21 @@ class _HomeScreenState extends State<HomeScreen>
               color: kPrimary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.person_outline_rounded,
-                color: kTextOnPrimary, size: 22),
+            child: const Icon(
+              Icons.person_outline_rounded,
+              color: kTextOnPrimary,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_getGreeting(),
-                    style: _body(ts, 12, FontWeight.w500, ls: 0.2)),
+                Text(
+                  _getGreeting(),
+                  style: _body(ts, 12, FontWeight.w500, ls: 0.2),
+                ),
                 const SizedBox(height: 2),
                 Text(_userName, style: _body(tp, 16, FontWeight.bold)),
               ],
@@ -277,8 +302,10 @@ class _HomeScreenState extends State<HomeScreen>
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: kTextOnPrimary.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(99),
@@ -287,19 +314,29 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.bolt_rounded,
-                        size: 13, color: kTextOnPrimary.withOpacity(0.65)),
+                    Icon(
+                      Icons.bolt_rounded,
+                      size: 13,
+                      color: kTextOnPrimary.withOpacity(0.65),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'GoPay Campus',
-                      style: _body(kTextOnPrimary.withOpacity(0.65), 11,
-                          FontWeight.w700, ls: 0.4),
+                      style: _body(
+                        kTextOnPrimary.withOpacity(0.65),
+                        11,
+                        FontWeight.w700,
+                        ls: 0.4,
+                      ),
                     ),
                   ],
                 ),
               ),
               const Spacer(),
-              _buildWalletAction(Icons.add_rounded, onTap: () => showTopUpModal(context)),
+              _buildWalletAction(
+                Icons.add_rounded,
+                onTap: () => showTopUpModal(context),
+              ),
               const SizedBox(width: 8),
               _buildWalletAction(Icons.history_rounded),
             ],
@@ -312,30 +349,47 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Saldo',
-                        style: _body(kTextOnPrimary.withOpacity(0.55), 11,
-                            FontWeight.w500)),
+                    Text(
+                      'Saldo',
+                      style: _body(
+                        kTextOnPrimary.withOpacity(0.55),
+                        11,
+                        FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 3),
-                    Text('Rp ${_formatCurrency(_walletBalance)}',
-                        style: _display(kTextOnPrimary, 26, FontWeight.w800)),
+                    Text(
+                      'Rp ${_formatCurrency(_walletBalance)}',
+                      style: _display(kTextOnPrimary, 26, FontWeight.w800),
+                    ),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('GoCoin',
-                      style: _body(kTextOnPrimary.withOpacity(0.55), 11,
-                          FontWeight.w500)),
+                  Text(
+                    'GoCoin',
+                    style: _body(
+                      kTextOnPrimary.withOpacity(0.55),
+                      11,
+                      FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.toll_rounded,
-                          size: 15, color: kTextOnPrimary.withOpacity(0.75)),
+                      Icon(
+                        Icons.toll_rounded,
+                        size: 15,
+                        color: kTextOnPrimary.withOpacity(0.75),
+                      ),
                       const SizedBox(width: 4),
-                      Text(_formatCurrency(_coinBalance),
-                          style: _body(kTextOnPrimary, 17, FontWeight.bold)),
+                      Text(
+                        _formatCurrency(_coinBalance),
+                        style: _body(kTextOnPrimary, 17, FontWeight.bold),
+                      ),
                     ],
                   ),
                 ],
@@ -380,19 +434,22 @@ class _HomeScreenState extends State<HomeScreen>
             Icon(Icons.search_rounded, color: ts, size: 19),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('Mau ke mana hari ini?',
-                  style: _body(ts, 13, FontWeight.w400)),
+              child: Text(
+                'Mau ke mana hari ini?',
+                style: _body(ts, 13, FontWeight.w400),
+              ),
             ),
             Container(
               margin: const EdgeInsets.all(6),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: kPrimary,
                 borderRadius: BorderRadius.circular(99),
               ),
-              child:
-                  Text('Cari', style: _body(kTextOnPrimary, 12, FontWeight.bold)),
+              child: Text(
+                'Cari',
+                style: _body(kTextOnPrimary, 12, FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -403,8 +460,13 @@ class _HomeScreenState extends State<HomeScreen>
   // ─────────────────────────────────────────────────────────────────────────
   // 4. Section Label
   // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildSectionLabel(String title, Color tp, Color ts,
-      {String? action, VoidCallback? onActionTap}) {
+  Widget _buildSectionLabel(
+    String title,
+    Color tp,
+    Color ts, {
+    String? action,
+    VoidCallback? onActionTap,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
       child: Row(
@@ -417,7 +479,10 @@ class _HomeScreenState extends State<HomeScreen>
               borderRadius: BorderRadius.circular(6),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Text(action, style: _body(kPrimaryDeep, 13, FontWeight.w600)),
+                child: Text(
+                  action,
+                  style: _body(kPrimaryDeep, 13, FontWeight.w600),
+                ),
               ),
             ),
         ],
@@ -430,16 +495,36 @@ class _HomeScreenState extends State<HomeScreen>
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildServiceGrid(Color tp, bool isDark) {
     final services = [
-      _ServiceItem('Antar',   Icons.motorcycle_rounded,   kPrimary,                kTextOnPrimary),
-      _ServiceItem('Makan',   Icons.restaurant_rounded,   const Color(0xFFFF9F43), Colors.white),
-      _ServiceItem('Titip',  Icons.shopping_bag_rounded, const Color(0xFF54A0FF), Colors.white),
+      _ServiceItem(
+        'Antar',
+        Icons.motorcycle_rounded,
+        kPrimary,
+        kTextOnPrimary,
+        onTap: () => setState(() => _navIndex = 2),
+      ),
+      _ServiceItem(
+        'Makan',
+        Icons.restaurant_rounded,
+        const Color(0xFFFF9F43),
+        Colors.white,
+        onTap: () => _openServiceOrder('makan'),
+      ),
+      _ServiceItem(
+        'Titip',
+        Icons.shopping_bag_rounded,
+        const Color(0xFF54A0FF),
+        Colors.white,
+        onTap: () => _openServiceOrder('titip'),
+      ),
     ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemW = (constraints.maxWidth - 16 * (services.length - 1)) / services.length;
+          final itemW =
+              (constraints.maxWidth - 16 * (services.length - 1)) /
+              services.length;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: services
@@ -451,47 +536,68 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Buka formulir Makan / Titip, lalu arahkan ke halaman Pesanan (riwayat).
+  Future<void> _openServiceOrder(String type) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ServiceOrderScreen(serviceType: type)),
+    );
+    if (result == true && mounted) {
+      setState(() {
+        _navIndex = 2;
+        _historySignal++;
+      });
+    }
+  }
+
   Widget _buildServiceItem(
-      _ServiceItem s, Color tp, bool isDark, double itemW) {
-    final boxSz  = (itemW * 0.72).clamp(44.0, 60.0);
+    _ServiceItem s,
+    Color tp,
+    bool isDark,
+    double itemW,
+  ) {
+    final boxSz = (itemW * 0.72).clamp(44.0, 60.0);
     final iconBg = boxSz * 0.65;
     final iconSz = boxSz * 0.36;
 
-    return SizedBox(
-      width: itemW,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: boxSz,
-            height: boxSz,
-            decoration: BoxDecoration(
-              color: isDark ? kCardDark : kCardLight,
-              borderRadius: BorderRadius.circular(boxSz * 0.30),
-              border: Border.all(
-                  color: isDark ? kBorderDark : kBorderLight),
-            ),
-            child: Center(
-              child: Container(
-                width: iconBg,
-                height: iconBg,
-                decoration: BoxDecoration(
-                  color: s.bg,
-                  borderRadius: BorderRadius.circular(iconBg * 0.30),
+    return GestureDetector(
+      onTap: s.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: itemW,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: boxSz,
+              height: boxSz,
+              decoration: BoxDecoration(
+                color: isDark ? kCardDark : kCardLight,
+                borderRadius: BorderRadius.circular(boxSz * 0.30),
+                border: Border.all(color: isDark ? kBorderDark : kBorderLight),
+              ),
+              child: Center(
+                child: Container(
+                  width: iconBg,
+                  height: iconBg,
+                  decoration: BoxDecoration(
+                    color: s.bg,
+                    borderRadius: BorderRadius.circular(iconBg * 0.30),
+                  ),
+                  child: Icon(s.icon, color: s.iconColor, size: iconSz),
                 ),
-                child: Icon(s.icon, color: s.iconColor, size: iconSz),
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            s.label,
-            style: _body(tp, 11, FontWeight.w600),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+            const SizedBox(height: 7),
+            Text(
+              s.label,
+              style: _body(tp, 11, FontWeight.w600),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -533,8 +639,10 @@ class _HomeScreenState extends State<HomeScreen>
                 top: 12,
                 right: 14,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(99),
@@ -580,21 +688,31 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.radar_rounded,
-                          color: kTextOnPrimary, size: 24),
+                      child: const Icon(
+                        Icons.radar_rounded,
+                        color: kTextOnPrimary,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    Text('Lihat Driver Terdekat',
-                        style: _body(Colors.white, 15, FontWeight.bold)),
+                    Text(
+                      'Lihat Driver Terdekat',
+                      style: _body(Colors.white, 15, FontWeight.bold),
+                    ),
                     const SizedBox(height: 3),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Ketuk untuk memindai radar sekitar',
-                            style: _body(Colors.white70, 12, FontWeight.w400)),
+                        Text(
+                          'Ketuk untuk memindai radar sekitar',
+                          style: _body(Colors.white70, 12, FontWeight.w400),
+                        ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_ios_rounded,
-                            size: 10, color: kPrimary),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 10,
+                          color: kPrimary,
+                        ),
                       ],
                     ),
                   ],
@@ -626,35 +744,48 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: kTextOnPrimary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('PROMO KAMPUS',
-                      style:
-                          _body(kTextOnPrimary, 10, FontWeight.w800, ls: 1.1)),
+                  child: Text(
+                    'PROMO KAMPUS',
+                    style: _body(kTextOnPrimary, 10, FontWeight.w800, ls: 1.1),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text('Diskon 50%',
-                    style: _display(kTextOnPrimary, 22, FontWeight.w900)),
+                Text(
+                  'Diskon 50%',
+                  style: _display(kTextOnPrimary, 22, FontWeight.w900),
+                ),
                 const SizedBox(height: 5),
                 Text(
                   'Makan siang hemat\ndi kantin favoritmu!',
-                  style: _body(kTextOnPrimary.withOpacity(0.6), 12,
-                      FontWeight.w500, h: 1.5),
+                  style: _body(
+                    kTextOnPrimary.withOpacity(0.6),
+                    12,
+                    FontWeight.w500,
+                    h: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
                   decoration: BoxDecoration(
                     color: kTextOnPrimary,
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text('Klaim Sekarang',
-                      style: _body(kPrimary, 12, FontWeight.bold)),
+                  child: Text(
+                    'Klaim Sekarang',
+                    style: _body(kPrimary, 12, FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -666,7 +797,10 @@ class _HomeScreenState extends State<HomeScreen>
               '50',
               textAlign: TextAlign.center,
               style: _display(
-                  kTextOnPrimary.withOpacity(0.08), 72, FontWeight.w900),
+                kTextOnPrimary.withOpacity(0.08),
+                72,
+                FontWeight.w900,
+              ),
             ),
           ),
         ],
@@ -707,7 +841,9 @@ class _HomeScreenState extends State<HomeScreen>
                 ? '${parts[0]} ${parts[1][0]}.'
                 : parts[0];
             final ratingVal = (data['rating'] as num?)?.toDouble() ?? 5.0;
-            final dist = idx < distancePool.length ? distancePool[idx] : '${(idx + 1) * 300} m';
+            final dist = idx < distancePool.length
+                ? distancePool[idx]
+                : '${(idx + 1) * 300} m';
             idx++;
 
             return {
@@ -747,7 +883,8 @@ class _HomeScreenState extends State<HomeScreen>
                   color: isDark ? kCardDark : kCardLight,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                      color: isDark ? kBorderDark : kBorderLight),
+                    color: isDark ? kBorderDark : kBorderLight,
+                  ),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -764,9 +901,11 @@ class _HomeScreenState extends State<HomeScreen>
                                 : const Color(0xFFEDF2E5),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.person_rounded,
-                              color: isDark ? Colors.white38 : Colors.black26,
-                              size: 22),
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: isDark ? Colors.white38 : Colors.black26,
+                            size: 22,
+                          ),
                         ),
                         Positioned(
                           right: 0,
@@ -800,14 +939,18 @@ class _HomeScreenState extends State<HomeScreen>
                       children: [
                         Icon(Icons.star_rounded, size: 12, color: kPrimaryDeep),
                         const SizedBox(width: 3),
-                        Text(d['rating']!,
-                            style: _body(ts, 11, FontWeight.w500)),
+                        Text(
+                          d['rating']!,
+                          style: _body(ts, 11, FontWeight.w500),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(d['dist']!,
-                        style: _body(ts, 11, FontWeight.w400),
-                        textAlign: TextAlign.center),
+                    Text(
+                      d['dist']!,
+                      style: _body(ts, 11, FontWeight.w400),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               );
@@ -825,17 +968,22 @@ class _HomeScreenState extends State<HomeScreen>
     final bg = isDark ? kSurfaceDark : kCardLight;
 
     const items = [
-      _NavItem(Icons.home_rounded,          Icons.home_outlined,               'Beranda'),
-      _NavItem(Icons.local_offer_rounded,   Icons.local_offer_outlined,        'Promo'),
-      _NavItem(Icons.receipt_long_rounded,  Icons.receipt_long_outlined,       'Pesanan'),
-      _NavItem(Icons.person_rounded,        Icons.person_outline_rounded,       'Profil'),
+      _NavItem(Icons.home_rounded, Icons.home_outlined, 'Beranda'),
+      _NavItem(Icons.local_offer_rounded, Icons.local_offer_outlined, 'Promo'),
+      _NavItem(
+        Icons.receipt_long_rounded,
+        Icons.receipt_long_outlined,
+        'Pesanan',
+      ),
+      _NavItem(Icons.person_rounded, Icons.person_outline_rounded, 'Profil'),
     ];
 
     return Container(
       decoration: BoxDecoration(
         color: bg,
         border: Border(
-            top: BorderSide(color: isDark ? kBorderDark : kBorderLight)),
+          top: BorderSide(color: isDark ? kBorderDark : kBorderLight),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -848,7 +996,7 @@ class _HomeScreenState extends State<HomeScreen>
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(items.length, (i) {
-                  final sel  = i == _navIndex;
+                  final sel = i == _navIndex;
                   final item = items[i];
 
                   return GestureDetector(
@@ -877,9 +1025,10 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                           if (sel && showLabel) ...[
                             const SizedBox(width: 6),
-                            Text(item.label,
-                                style:
-                                    _body(kTextOnPrimary, 12, FontWeight.bold)),
+                            Text(
+                              item.label,
+                              style: _body(kTextOnPrimary, 12, FontWeight.bold),
+                            ),
                           ],
                         ],
                       ),
@@ -897,17 +1046,24 @@ class _HomeScreenState extends State<HomeScreen>
 
 // ── Data Models ───────────────────────────────────────────────────────────────
 class _ServiceItem {
-  final String   label;
+  final String label;
   final IconData icon;
-  final Color    bg;
-  final Color    iconColor;
-  const _ServiceItem(this.label, this.icon, this.bg, this.iconColor);
+  final Color bg;
+  final Color iconColor;
+  final VoidCallback? onTap;
+  const _ServiceItem(
+    this.label,
+    this.icon,
+    this.bg,
+    this.iconColor, {
+    this.onTap,
+  });
 }
 
 class _NavItem {
   final IconData activeIcon;
   final IconData inactiveIcon;
-  final String   label;
+  final String label;
   const _NavItem(this.activeIcon, this.inactiveIcon, this.label);
 }
 
@@ -916,7 +1072,7 @@ class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final dot = Paint()
-      ..color     = Colors.white.withOpacity(0.06)
+      ..color = Colors.white.withOpacity(0.06)
       ..strokeCap = StrokeCap.round;
     const step = 22.0;
     for (double x = 0; x < size.width; x += step) {
@@ -925,15 +1081,24 @@ class _DotGridPainter extends CustomPainter {
       }
     }
     final road = Paint()
-      ..color       = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withOpacity(0.05)
       ..strokeWidth = 1.5
-      ..style       = PaintingStyle.stroke;
-    canvas.drawLine(Offset(size.width * 0.2, 0),
-        Offset(size.width * 0.35, size.height), road);
-    canvas.drawLine(Offset(size.width * 0.6, 0),
-        Offset(size.width * 0.75, size.height), road);
-    canvas.drawLine(Offset(0, size.height * 0.4),
-        Offset(size.width, size.height * 0.55), road);
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(
+      Offset(size.width * 0.2, 0),
+      Offset(size.width * 0.35, size.height),
+      road,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.6, 0),
+      Offset(size.width * 0.75, size.height),
+      road,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.4),
+      Offset(size.width, size.height * 0.55),
+      road,
+    );
   }
 
   @override

@@ -13,6 +13,31 @@ const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
 const Color kBackgroundDark = Color(0xFF1D2210);
 
+/// Hari yang didukung untuk input jadwal kuliah: Senin s.d. Jumat.
+const List<String> kDayNames = [
+  '',
+  'Senin',
+  'Selasa',
+  'Rabu',
+  'Kamis',
+  'Jumat',
+];
+
+/// Satu baris jadwal kuliah yang diisi saat pendaftaran.
+class _CourseEntry {
+  final String courseName;
+  final String room;
+  final String startTime; // HH:mm
+  final String endTime; // HH:mm
+
+  const _CourseEntry({
+    required this.courseName,
+    required this.room,
+    required this.startTime,
+    required this.endTime,
+  });
+}
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -26,22 +51,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _phoneController = TextEditingController();
   final _nimController = TextEditingController();
+  final _nikController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   final _facultyController = TextEditingController();
 
-  XFile? _ktmImage;
-  Uint8List? _ktmBytes;
-  String? _ktmError;
+  /// mahasiswa | driver_kampus (driver mahasiswa) | driver_umum
+  String _role = 'mahasiswa';
+
+  XFile? _docImage;
+  Uint8List? _docBytes;
+  String? _docError;
+  String? _scheduleError;
   bool _loading = false;
   bool _obscurePassword = true;
   String _status = '';
+
+  /// Jadwal kuliah per hari (1 = Senin ... 5 = Jumat).
+  final Map<int, List<_CourseEntry>> _schedules = {
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+    5: [],
+  };
+
+  bool get _isMahasiswa => _role == 'mahasiswa';
+  bool get _isDriverMahasiswa => _role == 'driver_kampus';
+  bool get _isDriverUmum => _role == 'driver_umum';
+  bool get _isStudentRole => _isMahasiswa || _isDriverMahasiswa;
+  String get _docLabel => _isDriverUmum ? 'KTP' : 'KTM';
+  int get _totalSchedules =>
+      _schedules.values.fold(0, (total, list) => total + list.length);
 
   @override
   void dispose() {
     _phoneController.dispose();
     _nimController.dispose();
+    _nikController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
@@ -49,15 +97,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void _selectRole(String role) {
+    if (_role == role) return;
+    setState(() {
+      _role = role;
+      _docImage = null;
+      _docBytes = null;
+      _docError = null;
+      _scheduleError = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color bgColor = isDark ? kBackgroundDark : Colors.white;
-    final Color inputBg = isDark ? const Color(0xFF0F1405) : const Color(0xFFF1F5F9);
-    final Color textPrimary = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final Color textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
-    final Color borderColor = isDark ? const Color(0xFF334110) : const Color(0xFFE2E8F0);
+    final Color inputBg = isDark
+        ? const Color(0xFF0F1405)
+        : const Color(0xFFF1F5F9);
+    final Color textPrimary = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF0F172A);
+    final Color textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF475569);
+    final Color borderColor = isDark
+        ? const Color(0xFF334110)
+        : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -75,7 +142,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Form(
                     key: _formKey,
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -91,7 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Lengkapi data diri kamu untuk mulai menggunakan layanan khusus mahasiswa.',
+                            'Pilih jenis akun yang ingin kamu daftarkan, lalu lengkapi datanya.',
                             style: TextStyle(
                               color: textSecondary,
                               fontSize: 16,
@@ -99,33 +169,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
 
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
-                          // WhatsApp Section
-                          _buildSectionLabel('Nomor WhatsApp (+62)', textPrimary),
+                          // ── Pilihan Peran ────────────────────────────────────
+                          _buildSectionLabel('Daftar Sebagai', textPrimary),
                           const SizedBox(height: 12),
-                          _buildWhatsAppField(inputBg, textPrimary, borderColor),
+                          _buildRoleSelector(
+                            isDark,
+                            textPrimary,
+                            textSecondary,
+                            borderColor,
+                          ),
 
                           const SizedBox(height: 24),
 
-                          // NIM Section (pengganti verifikasi OTP)
-                          _buildInputField(
-                            label: 'Nomor Induk Mahasiswa (NIM)',
-                            hint: '12345678',
-                            controller: _nimController,
-                            bg: inputBg,
-                            textColor: textPrimary,
-                            border: borderColor,
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              final v = (value ?? '').trim();
-                              if (v.isEmpty) return 'NIM wajib diisi.';
-                              if (!RegExp(r'^\d{5,20}$').hasMatch(v)) {
-                                return 'NIM hanya angka (5-20 digit).';
-                              }
-                              return null;
-                            },
+                          // WhatsApp Section
+                          _buildSectionLabel(
+                            'Nomor WhatsApp (+62)',
+                            textPrimary,
                           ),
+                          const SizedBox(height: 12),
+                          _buildWhatsAppField(
+                            inputBg,
+                            textPrimary,
+                            borderColor,
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // NIM (mahasiswa & driver mahasiswa) / NIK (driver umum)
+                          if (_isStudentRole) ...[
+                            _buildInputField(
+                              label: 'Nomor Induk Mahasiswa (NIM)',
+                              hint: '12345678',
+                              controller: _nimController,
+                              bg: inputBg,
+                              textColor: textPrimary,
+                              border: borderColor,
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                final v = (value ?? '').trim();
+                                if (v.isEmpty) return 'NIM wajib diisi.';
+                                if (!RegExp(r'^\d{5,20}$').hasMatch(v)) {
+                                  return 'NIM hanya angka (5-20 digit).';
+                                }
+                                return null;
+                              },
+                            ),
+                          ] else ...[
+                            _buildInputField(
+                              label: 'NIK KTP',
+                              hint: '16 digit sesuai KTP',
+                              controller: _nikController,
+                              bg: inputBg,
+                              textColor: textPrimary,
+                              border: borderColor,
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                final v = (value ?? '').trim();
+                                if (v.isEmpty) return 'NIK wajib diisi.';
+                                if (!RegExp(r'^\d{16}$').hasMatch(v)) {
+                                  return 'NIK harus 16 digit angka.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
 
                           const SizedBox(height: 24),
 
@@ -141,7 +250,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             validator: (value) {
                               final v = (value ?? '').trim();
                               if (v.isEmpty) return 'Email wajib diisi.';
-                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
+                              if (!RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              ).hasMatch(v)) {
                                 return 'Format email tidak valid.';
                               }
                               return null;
@@ -159,8 +270,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             border: borderColor,
                             obscureText: _obscurePassword,
                             suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                               icon: Icon(
                                 _obscurePassword
                                     ? Icons.visibility_outlined
@@ -172,24 +284,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             validator: (value) {
                               final v = value ?? '';
                               if (v.isEmpty) return 'Password wajib diisi.';
-                              if (v.length < 6) return 'Password minimal 6 karakter.';
+                              if (v.length < 6) {
+                                return 'Password minimal 6 karakter.';
+                              }
                               return null;
                             },
                           ),
 
-                          const Divider(height: 64, thickness: 1, color: Color(0xFFF1F5F9)),
+                          const Divider(
+                            height: 64,
+                            thickness: 1,
+                            color: Color(0xFFF1F5F9),
+                          ),
 
-                          // Student Info Section
+                          // Info pribadi
                           Text(
-                            'Informasi Mahasiswa',
+                            _isDriverUmum
+                                ? 'Informasi Driver Umum'
+                                : 'Informasi Mahasiswa',
                             style: TextStyle(
-                                color: textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
+                              color: textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 24),
 
                           _buildInputField(
                             label: 'Nama Lengkap',
-                            hint: 'Sesuai KTM',
+                            hint: _isDriverUmum ? 'Sesuai KTP' : 'Sesuai KTM',
                             controller: _nameController,
                             bg: inputBg,
                             textColor: textPrimary,
@@ -202,35 +325,108 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 20),
-
-                          _buildInputField(
-                            label: 'Fakultas',
-                            hint: 'Teknik',
-                            controller: _facultyController,
-                            bg: inputBg,
-                            textColor: textPrimary,
-                            border: borderColor,
-                            validator: (value) {
-                              if ((value ?? '').trim().isEmpty) {
-                                return 'Fakultas wajib diisi.';
-                              }
-                              return null;
-                            },
-                          ),
+                          if (_isStudentRole) ...[
+                            const SizedBox(height: 20),
+                            _buildInputField(
+                              label: 'Fakultas',
+                              hint: 'Teknik',
+                              controller: _facultyController,
+                              bg: inputBg,
+                              textColor: textPrimary,
+                              border: borderColor,
+                              validator: (value) {
+                                if ((value ?? '').trim().isEmpty) {
+                                  return 'Fakultas wajib diisi.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
 
                           const SizedBox(height: 24),
 
-                          // KTM Upload Section
-                          _buildSectionLabel('Unggah Foto KTM', textPrimary),
+                          // Upload KTM / KTP
+                          _buildSectionLabel(
+                            _isDriverUmum
+                                ? 'Unggah Foto KTP'
+                                : 'Unggah Foto KTM',
+                            textPrimary,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isDriverUmum
+                                ? 'Driver umum wajib melampirkan foto KTP untuk verifikasi admin.'
+                                : 'KTM dipakai untuk verifikasi status mahasiswa.',
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                          ),
                           const SizedBox(height: 12),
-                          _buildKTMUploadBox(isDark, textSecondary, borderColor),
-                          if (_ktmError != null) ...[
+                          _buildDocUploadBox(
+                            isDark,
+                            textSecondary,
+                            borderColor,
+                          ),
+                          if (_docError != null) ...[
                             const SizedBox(height: 8),
                             Text(
-                              _ktmError!,
-                              style: const TextStyle(color: Colors.red, fontSize: 12),
+                              _docError!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
                             ),
+                          ],
+
+                          // Jadwal kuliah (mahasiswa & driver mahasiswa)
+                          if (_isStudentRole) ...[
+                            const Divider(
+                              height: 64,
+                              thickness: 1,
+                              color: Color(0xFFF1F5F9),
+                            ),
+                            Text(
+                              'Jadwal Kuliah (Senin – Jumat)',
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Isi jadwal kuliahmu supaya driver dan admin tahu kapan kamu sibuk. '
+                              'Minimal satu mata kuliah.',
+                              style: TextStyle(
+                                color: textSecondary,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ...List.generate(5, (i) {
+                              final day = i + 1;
+                              return _buildDayScheduleCard(
+                                day: day,
+                                isDark: isDark,
+                                textPrimary: textPrimary,
+                                textSecondary: textSecondary,
+                                inputBg: inputBg,
+                                borderColor: borderColor,
+                              );
+                            }),
+                            if (_scheduleError != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _scheduleError!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ],
 
                           const SizedBox(height: 40),
@@ -243,8 +439,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: Text(
                               'Dengan mendaftar, kamu menyetujui Syarat & Ketentuan serta Kebijakan Privasi Gojek Kampus.',
                               textAlign: TextAlign.center,
-                              style:
-                                  TextStyle(color: textSecondary.withOpacity(0.6), fontSize: 12),
+                              style: TextStyle(
+                                color: textSecondary.withOpacity(0.6),
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 40),
@@ -260,7 +458,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   width: 120,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                    color: isDark
+                        ? Colors.white10
+                        : Colors.black.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
@@ -274,7 +474,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // ─── Firebase ───────────────────────────────────────────────────────────────
 
-  Future<void> _pickKtmImage() async {
+  Future<void> _pickDocImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
@@ -290,9 +490,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() {
-      _ktmImage = picked;
-      _ktmBytes = bytes;
-      _ktmError = null;
+      _docImage = picked;
+      _docBytes = bytes;
+      _docError = null;
     });
   }
 
@@ -301,9 +501,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final bool formValid = _formKey.currentState?.validate() ?? false;
     setState(() {
-      _ktmError = _ktmImage == null ? 'Foto KTM wajib diunggah.' : null;
+      _docError = _docImage == null ? 'Foto $_docLabel wajib diunggah.' : null;
+      _scheduleError = (_isStudentRole && _totalSchedules == 0)
+          ? 'Isi minimal satu jadwal kuliah.'
+          : null;
     });
-    if (!formValid || _ktmImage == null) return;
+    if (!formValid || _docImage == null) return;
+    if (_isStudentRole && _totalSchedules == 0) return;
 
     setState(() {
       _loading = true;
@@ -311,74 +515,133 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      final phone = _buildPhoneNumber();
+      final username = _isStudentRole
+          ? _nimController.text.trim()
+          : phone.replaceAll(RegExp(r'[^0-9]'), '');
+
       // 1. Buat akun di Firebase Auth + profil di Firestore (users & login_index)
       final user = await _authService
           .register(
             email: _emailController.text.trim(),
             password: _passwordController.text,
             name: _nameController.text.trim(),
-            username: _nimController.text.trim(),
-            role: 'mahasiswa',
-            nim: _nimController.text.trim(),
-            phone: _buildPhoneNumber(),
-            faculty: _facultyController.text.trim(),
+            username: username,
+            role: _role,
+            nim: _isStudentRole ? _nimController.text.trim() : null,
+            phone: phone,
+            faculty: _isStudentRole ? _facultyController.text.trim() : null,
           )
           .timeout(const Duration(seconds: 30));
 
       if (!mounted) return;
 
-      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final extension = _ktmImage!.name.contains('.')
-          ? _ktmImage!.name.split('.').last.toLowerCase()
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final extension = _docImage!.name.contains('.')
+          ? _docImage!.name.split('.').last.toLowerCase()
           : 'jpg';
-      final contentType = extension == 'jpg' ? 'image/jpeg' : 'image/$extension';
+      final contentType = extension == 'jpg'
+          ? 'image/jpeg'
+          : 'image/$extension';
       final nowIso = DateTime.now().toIso8601String();
+      final folder = _isDriverUmum ? 'ktp' : 'ktm';
+      final urlField = _isDriverUmum ? 'ktpUrl' : 'ktmUrl';
+      final storageField = _isDriverUmum ? 'ktpStorage' : 'ktmStorage';
 
-      // 2. Upload foto KTM ke Firebase Storage (dibatasi waktunya agar tidak menggantung)
+      // 2. Upload berkas identitas ke Firebase Storage
       try {
         final storageRef = FirebaseStorage.instance
             .ref()
-            .child('ktm')
+            .child(folder)
             .child(user.uid)
-            .child('ktm_${DateTime.now().millisecondsSinceEpoch}.$extension');
+            .child(
+              '${folder}_${DateTime.now().millisecondsSinceEpoch}.$extension',
+            );
 
         await storageRef
-            .putData(_ktmBytes!, SettableMetadata(contentType: contentType))
+            .putData(_docBytes!, SettableMetadata(contentType: contentType))
             .timeout(const Duration(seconds: 20));
-        final downloadUrl = await storageRef
-            .getDownloadURL()
-            .timeout(const Duration(seconds: 15));
+        final downloadUrl = await storageRef.getDownloadURL().timeout(
+          const Duration(seconds: 15),
+        );
 
-        // 3. Simpan URL KTM ke dokumen user
-        await userRef.update({
-          'ktmUrl': downloadUrl,
-          'ktmStorage': 'storage',
-          'ktmUploadedAt': nowIso,
-        }).timeout(const Duration(seconds: 20));
-      } catch (_) {
+        // 3. Simpan URL berkas ke dokumen user
+        await userRef
+            .update({
+              urlField: downloadUrl,
+              storageField: 'storage',
+              '${folder}UploadedAt': nowIso,
+            })
+            .timeout(const Duration(seconds: 20));
+      } catch (storageError) {
         // Fallback: simpan foto langsung di Firestore (subkoleksi users/{uid}/documents)
         // supaya foto tetap tersimpan walau Firebase Storage belum aktif.
         try {
-          if (_ktmBytes!.length <= 700 * 1024) {
-            await userRef.collection('documents').doc('ktm').set({
-              'fileName': _ktmImage!.name,
-              'contentType': contentType,
-              'base64': base64Encode(_ktmBytes!),
-              'uploadedAt': nowIso,
-            }).timeout(const Duration(seconds: 20));
-            await userRef.update({
-              'ktmStorage': 'firestore',
-              'ktmUploadedAt': nowIso,
-            }).timeout(const Duration(seconds: 20));
+          if (_docBytes!.length > 700 * 1024) {
+            throw Exception('Foto terlalu besar untuk penyimpanan cadangan.');
           }
-        } catch (_) {}
+          await userRef
+              .collection('documents')
+              .doc(folder)
+              .set({
+                'fileName': _docImage!.name,
+                'contentType': contentType,
+                'base64': base64Encode(_docBytes!),
+                'uploadedAt': nowIso,
+              })
+              .timeout(const Duration(seconds: 20));
+          await userRef
+              .update({
+                storageField: 'firestore',
+                '${folder}UploadedAt': nowIso,
+              })
+              .timeout(const Duration(seconds: 20));
+        } catch (firestoreError) {
+          throw Exception(
+            'Gagal menyimpan foto $_docLabel. '
+            'Penyimpanan utama: $storageError; penyimpanan cadangan: $firestoreError',
+          );
+        }
+      }
+
+      // 4. Simpan data tambahan sesuai peran
+      final extra = <String, dynamic>{};
+      if (_isDriverUmum) {
+        extra['nik'] = _nikController.text.trim();
+      }
+      if (extra.isNotEmpty) {
+        await userRef.update(extra).timeout(const Duration(seconds: 20));
+      }
+
+      // 5. Simpan jadwal kuliah Senin–Jumat ke users/{uid}/schedules
+      if (_isStudentRole) {
+        final batch = FirebaseFirestore.instance.batch();
+        batch.update(userRef, {'hasSchedule': true});
+        _schedules.forEach((day, entries) {
+          for (final entry in entries) {
+            batch.set(userRef.collection('schedules').doc(), {
+              'userId': user.uid,
+              'courseName': entry.courseName,
+              'courseType': 'regular',
+              'room': entry.room,
+              'building': '',
+              'dayOfWeek': day,
+              'startTime': entry.startTime,
+              'endTime': entry.endTime,
+              'createdAt': nowIso,
+            });
+          }
+        });
+        await batch.commit().timeout(const Duration(seconds: 30));
       }
 
       if (!mounted) return;
       _showSnack('Pendaftaran berhasil', Colors.green);
       Navigator.pop(context, true);
-    } catch (_) {
-      _showSnack('Pendaftaran gagal', Colors.red);
+    } catch (e) {
+      _showSnack(AuthService.readableError(e), Colors.red);
     } finally {
       if (mounted) {
         setState(() {
@@ -397,9 +660,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _showSnack(String msg, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+  }
+
+  // ─── Jadwal Kuliah ──────────────────────────────────────────────────────────
+
+  Future<void> _addCourse(int day) async {
+    final entry = await showDialog<_CourseEntry>(
+      context: context,
+      builder: (_) => _AddCourseDialog(dayName: kDayNames[day]),
     );
+    if (entry == null) return;
+    setState(() {
+      _schedules[day]!.add(entry);
+      _scheduleError = null;
+    });
   }
 
   // ─── Widgets ────────────────────────────────────────────────────────────────
@@ -419,7 +696,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.only(right: 48),
                 child: Text(
                   'Gojek Kampus',
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -433,7 +714,94 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Text(
       label.toUpperCase(),
       style: TextStyle(
-          color: textColor, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1),
+        color: textColor,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1,
+      ),
+    );
+  }
+
+  Widget _buildRoleSelector(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+    Color border,
+  ) {
+    const roles = [
+      {
+        'role': 'mahasiswa',
+        'label': 'Mahasiswa',
+        'sub': 'Penumpang',
+        'icon': Icons.school_outlined,
+      },
+      {
+        'role': 'driver_kampus',
+        'label': 'Driver Mahasiswa',
+        'sub': 'KTM + jadwal',
+        'icon': Icons.two_wheeler_outlined,
+      },
+      {
+        'role': 'driver_umum',
+        'label': 'Driver Umum',
+        'sub': 'Pakai KTP',
+        'icon': Icons.badge_outlined,
+      },
+    ];
+
+    return Row(
+      children: roles.map((r) {
+        final role = r['role'] as String;
+        final selected = _role == role;
+
+        return Expanded(
+          child: GestureDetector(
+            onTap: _loading ? null : () => _selectRole(role),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              margin: EdgeInsets.only(right: role == 'driver_umum' ? 0 : 8),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+              decoration: BoxDecoration(
+                color: selected
+                    ? kPrimary.withOpacity(isDark ? 0.18 : 0.22)
+                    : (isDark
+                          ? const Color(0xFF0F1405)
+                          : const Color(0xFFF1F5F9)),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? kPrimary : border,
+                  width: selected ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    r['icon'] as IconData,
+                    size: 24,
+                    color: selected ? textPrimary : textSecondary,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    r['label'] as String,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: textPrimary,
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    r['sub'] as String,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: textSecondary, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -449,7 +817,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('+62', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            child: Text(
+              '+62',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
           ),
           Expanded(
             child: TextFormField(
@@ -492,13 +863,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Text(
           label,
-          style:
-              TextStyle(color: textColor.withOpacity(0.8), fontSize: 14, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            color: textColor.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 8),
         Container(
           constraints: const BoxConstraints(minHeight: 52),
-          padding: EdgeInsets.only(left: 16, right: suffixIcon == null ? 16 : 4),
+          padding: EdgeInsets.only(
+            left: 16,
+            right: suffixIcon == null ? 16 : 4,
+          ),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(16),
@@ -528,34 +905,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildKTMUploadBox(bool isDark, Color textSecondary, Color border) {
+  Widget _buildDocUploadBox(bool isDark, Color textSecondary, Color border) {
     return GestureDetector(
-      onTap: _loading ? null : _pickKtmImage,
+      onTap: _loading ? null : _pickDocImage,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         decoration: BoxDecoration(
-          color: isDark ? kPrimary.withOpacity(0.03) : const Color(0xFFF1F5F9).withOpacity(0.5),
+          color: isDark
+              ? kPrimary.withOpacity(0.03)
+              : const Color(0xFFF1F5F9).withOpacity(0.5),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _ktmError != null ? Colors.red : border,
+            color: _docError != null ? Colors.red : border,
             style: BorderStyle.solid,
           ),
         ),
-        child: _ktmBytes == null
+        child: _docBytes == null
             ? Column(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: kPrimary.withOpacity(0.2), shape: BoxShape.circle),
-                    child: const Icon(Icons.add_a_photo_outlined, color: Colors.black87),
+                    decoration: BoxDecoration(
+                      color: kPrimary.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_a_photo_outlined,
+                      color: Colors.black87,
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Text('Klik untuk ambil foto atau upload',
-                      style: TextStyle(color: textSecondary, fontWeight: FontWeight.w500)),
+                  Text(
+                    'Klik untuk ambil foto atau upload $_docLabel',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text('JPG, PNG, atau HEIC (Maks. 5MB)',
-                      style: TextStyle(color: textSecondary.withOpacity(0.5), fontSize: 12)),
+                  Text(
+                    'JPG, PNG, atau HEIC (Maks. 5MB)',
+                    style: TextStyle(
+                      color: textSecondary.withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               )
             : Column(
@@ -563,7 +959,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.memory(
-                      _ktmBytes!,
+                      _docBytes!,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -573,11 +969,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 18,
+                      ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          _ktmImage?.name ?? 'Foto KTM terpilih',
+                          _docImage?.name ?? 'Foto $_docLabel terpilih',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: textSecondary, fontSize: 12),
                         ),
@@ -586,12 +986,142 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Text(
                         'Ganti',
                         style: TextStyle(
-                            color: kPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+                          color: kPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildDayScheduleCard({
+    required int day,
+    required bool isDark,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color inputBg,
+    required Color borderColor,
+  }) {
+    final entries = _schedules[day] ?? const <_CourseEntry>[];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: inputBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  kDayNames[day],
+                  style: TextStyle(
+                    color: textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loading ? null : () => _addCourse(day),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: Color(0xFF6B8E00),
+                ),
+                label: const Text(
+                  'Tambah',
+                  style: TextStyle(
+                    color: Color(0xFF6B8E00),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (entries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Belum ada mata kuliah.',
+                style: TextStyle(
+                  color: textSecondary.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+            )
+          else
+            ...List.generate(entries.length, (i) {
+              final e = entries[i];
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1B2410) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            e.courseName,
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${e.startTime} - ${e.endTime}'
+                            '${e.room.isEmpty ? '' : ' • ${e.room}'}',
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _loading
+                          ? null
+                          : () => setState(() => _schedules[day]!.removeAt(i)),
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -608,7 +1138,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: kPrimary.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))
+              color: kPrimary.withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
           ],
         ),
         child: _loading
@@ -619,21 +1152,250 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: Color(0xFF0F172A)),
+                      strokeWidth: 2.5,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Text(
                     _status,
                     style: const TextStyle(
-                        color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w600),
+                      color: Colors.black87,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               )
             : const Text(
                 'Daftar / Masuk',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black87, fontSize: 17, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+      ),
+    );
+  }
+}
+
+/// Dialog untuk menambah satu mata kuliah pada hari tertentu.
+class _AddCourseDialog extends StatefulWidget {
+  final String dayName;
+
+  const _AddCourseDialog({required this.dayName});
+
+  @override
+  State<_AddCourseDialog> createState() => _AddCourseDialogState();
+}
+
+class _AddCourseDialogState extends State<_AddCourseDialog> {
+  final _nameController = TextEditingController();
+  final _roomController = TextEditingController();
+
+  TimeOfDay? _start;
+  TimeOfDay? _end;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _roomController.dispose();
+    super.dispose();
+  }
+
+  String _format(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime:
+          (isStart ? _start : _end) ?? const TimeOfDay(hour: 8, minute: 0),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isStart) {
+        _start = picked;
+      } else {
+        _end = picked;
+      }
+      _error = null;
+    });
+  }
+
+  void _submit() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Nama mata kuliah wajib diisi.');
+      return;
+    }
+    if (_start == null || _end == null) {
+      setState(() => _error = 'Jam mulai dan jam selesai wajib dipilih.');
+      return;
+    }
+    final startMinutes = _start!.hour * 60 + _start!.minute;
+    final endMinutes = _end!.hour * 60 + _end!.minute;
+    if (endMinutes <= startMinutes) {
+      setState(() => _error = 'Jam selesai harus setelah jam mulai.');
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      _CourseEntry(
+        courseName: name,
+        room: _roomController.text.trim(),
+        startTime: _format(_start!),
+        endTime: _format(_end!),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF0F172A);
+    final textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF475569);
+    final fieldBg = isDark ? const Color(0xFF0F1405) : const Color(0xFFF1F5F9);
+    final border = isDark ? const Color(0xFF334110) : const Color(0xFFE2E8F0);
+
+    InputDecoration decoration(String hint) => InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: textSecondary.withOpacity(0.6), fontSize: 14),
+      filled: true,
+      fillColor: fieldBg,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+
+    return AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF1D2210) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        'Jadwal ${widget.dayName}',
+        style: TextStyle(
+          color: textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _nameController,
+              style: TextStyle(color: textPrimary),
+              decoration: decoration('Nama mata kuliah'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _timeButton(
+                    label: 'Mulai',
+                    value: _start == null ? '--:--' : _format(_start!),
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    border: border,
+                    onTap: () => _pickTime(isStart: true),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _timeButton(
+                    label: 'Selesai',
+                    value: _end == null ? '--:--' : _format(_end!),
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    border: border,
+                    onTap: () => _pickTime(isStart: false),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _roomController,
+              style: TextStyle(color: textPrimary),
+              decoration: decoration('Ruang / gedung (opsional)'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Batal', style: TextStyle(color: textSecondary)),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: const Text(
+            'Simpan',
+            style: TextStyle(
+              color: Color(0xFF6B8E00),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _timeButton({
+    required String label,
+    required String value,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color border,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(color: textSecondary, fontSize: 11)),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

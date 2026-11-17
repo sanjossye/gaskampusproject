@@ -1,12 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-const Color kPrimary        = Color(0xFFC0F637);
+const Color kPrimary = Color(0xFFC0F637);
 const Color kSecondaryGreen = Color(0xFF68cd5c);
-const Color kBgDark         = Color(0xFF1D2210);
-const Color kBgLight        = Color(0xFFF7F8F5);
+const Color kBgDark = Color(0xFF1D2210);
+const Color kBgLight = Color(0xFFF7F8F5);
 
 TextStyle _body(Color c, double sz, FontWeight w, {double? ls, double? h}) =>
-    TextStyle(color: c, fontSize: sz, fontWeight: w, letterSpacing: ls, height: h);
+    TextStyle(
+      color: c,
+      fontSize: sz,
+      fontWeight: w,
+      letterSpacing: ls,
+      height: h,
+    );
 
 class OrderItem {
   final String driverName;
@@ -30,41 +38,16 @@ class OrderItem {
   });
 }
 
-final List<OrderItem> _allOrders = [
-  const OrderItem(
-    driverName: 'Siti Aminah',
-    driverPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
-    serviceType: 'Goride',
-    dateLabel: 'Hari ini, 09:12',
-    from: 'Asrama Mahasiswa',
-    to: 'Gedung Rektorat',
-    price: 'Rp10.000',
-    status: 'proses',
-  ),
-  const OrderItem(
-    driverName: 'Budi Santoso',
-    driverPhoto: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
-    serviceType: 'Goride',
-    dateLabel: '12 Okt 2023, 10:30',
-    from: 'Kampus A',
-    to: 'Kantin Pusat',
-    price: 'Rp12.000',
-    status: 'selesai',
-  ),
-  const OrderItem(
-    driverName: 'Andi Wijaya',
-    driverPhoto: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
-    serviceType: 'Gocar',
-    dateLabel: '11 Okt 2023, 15:45',
-    from: 'Fakultas Teknik',
-    to: 'Stasiun Kampus',
-    price: 'Rp25.000',
-    status: 'selesai',
-  ),
-];
-
 class PesananScreen extends StatefulWidget {
-  const PesananScreen({super.key});
+  /// Naikkan nilainya dari parent untuk langsung membuka Riwayat Pesanan.
+  final int openHistorySignal;
+  final VoidCallback onBackToHome;
+
+  const PesananScreen({
+    super.key,
+    this.openHistorySignal = 0,
+    required this.onBackToHome,
+  });
 
   @override
   State<PesananScreen> createState() => _PesananScreenState();
@@ -72,13 +55,21 @@ class PesananScreen extends StatefulWidget {
 
 class _PesananScreenState extends State<PesananScreen>
     with SingleTickerProviderStateMixin {
-  int _mainStep = 0;
+  int _mainStep = 2;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant PesananScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openHistorySignal != oldWidget.openHistorySignal) {
+      setState(() => _mainStep = 2);
+    }
   }
 
   @override
@@ -103,7 +94,7 @@ class _PesananScreenState extends State<PesananScreen>
       case 2:
         return _RiwayatScreen(
           tabController: _tabController,
-          onBack: () => setState(() => _mainStep = 0),
+          onBack: widget.onBackToHome,
         );
       default:
         return const SizedBox.shrink();
@@ -133,19 +124,19 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
       'label': 'Goride',
       'icon': Icons.motorcycle_rounded,
       'fare': 'Rp 10.000',
-      'time': '3-5'
+      'time': '3-5',
     },
     {
       'label': 'Gocar',
       'icon': Icons.directions_car_rounded,
       'fare': 'Rp 20.000',
-      'time': '5-7'
+      'time': '5-7',
     },
     {
       'label': 'Lainnya',
       'icon': Icons.more_horiz_rounded,
       'fare': 'Rp 10.000',
-      'time': '3-5'
+      'time': '3-5',
     },
   ];
 
@@ -170,8 +161,14 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     },
   ];
 
-  void _showPaymentSheet(BuildContext context, bool isDark, Color textColorPrimary,
-      Color textColorSecondary, Color cardBg, Color borderColor) {
+  void _showPaymentSheet(
+    BuildContext context,
+    bool isDark,
+    Color textColorPrimary,
+    Color textColorSecondary,
+    Color cardBg,
+    Color borderColor,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -181,17 +178,24 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
           builder: (ctx, setModal) => Container(
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
             ),
             padding: EdgeInsets.fromLTRB(
-                24, 20, 24, MediaQuery.of(ctx).padding.bottom + 24),
+              24,
+              20,
+              24,
+              MediaQuery.of(ctx).padding.bottom + 24,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 40, height: 4,
+                    width: 40,
+                    height: 4,
                     margin: const EdgeInsets.only(bottom: 20),
                     decoration: BoxDecoration(
                       color: isDark ? Colors.white24 : Colors.black12,
@@ -199,11 +203,15 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                     ),
                   ),
                 ),
-                Text('Metode Pembayaran',
-                    style: _body(textColorPrimary, 18, FontWeight.bold)),
+                Text(
+                  'Metode Pembayaran',
+                  style: _body(textColorPrimary, 18, FontWeight.bold),
+                ),
                 const SizedBox(height: 6),
-                Text('Pilih cara kamu membayar perjalanan',
-                    style: _body(textColorSecondary, 13, FontWeight.normal)),
+                Text(
+                  'Pilih cara kamu membayar perjalanan',
+                  style: _body(textColorSecondary, 13, FontWeight.normal),
+                ),
                 const SizedBox(height: 20),
                 ...List.generate(_paymentMethods.length, (i) {
                   final pm = _paymentMethods[i];
@@ -222,7 +230,9 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? accentColor.withOpacity(isDark ? 0.18 : 0.08)
-                            : (isDark ? const Color(0xFF232A18) : const Color(0xFFF8FAFC)),
+                            : (isDark
+                                  ? const Color(0xFF232A18)
+                                  : const Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected ? accentColor : borderColor,
@@ -232,40 +242,63 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                       child: Row(
                         children: [
                           Container(
-                            width: 48, height: 48,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
                               color: accentColor.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: Icon(pm['icon'] as IconData,
-                                color: accentColor, size: 24),
+                            child: Icon(
+                              pm['icon'] as IconData,
+                              color: accentColor,
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(pm['label'] as String,
-                                    style: _body(textColorPrimary, 15, FontWeight.bold)),
+                                Text(
+                                  pm['label'] as String,
+                                  style: _body(
+                                    textColorPrimary,
+                                    15,
+                                    FontWeight.bold,
+                                  ),
+                                ),
                                 const SizedBox(height: 2),
-                                Text(pm['sub'] as String,
-                                    style: _body(textColorSecondary, 12, FontWeight.normal)),
+                                Text(
+                                  pm['sub'] as String,
+                                  style: _body(
+                                    textColorSecondary,
+                                    12,
+                                    FontWeight.normal,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
-                            width: 22, height: 22,
+                            width: 22,
+                            height: 22,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isSelected ? accentColor : Colors.transparent,
+                              color: isSelected
+                                  ? accentColor
+                                  : Colors.transparent,
                               border: Border.all(
                                 color: isSelected ? accentColor : borderColor,
                                 width: 2,
                               ),
                             ),
                             child: isSelected
-                                ? const Icon(Icons.check, color: Colors.white, size: 13)
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 13,
+                                  )
                                 : null,
                           ),
                         ],
@@ -283,12 +316,22 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                       color: kPrimary,
                       borderRadius: BorderRadius.circular(99),
                       boxShadow: [
-                        BoxShadow(color: kPrimary.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4)),
+                        BoxShadow(
+                          color: kPrimary.withOpacity(0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
                       ],
                     ),
-                    child: Text('Konfirmasi',
-                        textAlign: TextAlign.center,
-                        style: _body(const Color(0xFF0F172A), 16, FontWeight.bold)),
+                    child: Text(
+                      'Konfirmasi',
+                      textAlign: TextAlign.center,
+                      style: _body(
+                        const Color(0xFF0F172A),
+                        16,
+                        FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -299,8 +342,14 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     );
   }
 
-  void _showLainnyaSheet(BuildContext context, bool isDark, Color textColorPrimary,
-      Color textColorSecondary, Color cardBg, Color borderColor) {
+  void _showLainnyaSheet(
+    BuildContext context,
+    bool isDark,
+    Color textColorPrimary,
+    Color textColorSecondary,
+    Color cardBg,
+    Color borderColor,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -311,14 +360,19 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
         padding: EdgeInsets.fromLTRB(
-            24, 20, 24, MediaQuery.of(context).padding.bottom + 24),
+          24,
+          20,
+          24,
+          MediaQuery.of(context).padding.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: isDark ? Colors.white24 : Colors.black12,
@@ -326,11 +380,15 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 ),
               ),
             ),
-            Text('Opsi Lainnya',
-                style: _body(textColorPrimary, 18, FontWeight.bold)),
+            Text(
+              'Opsi Lainnya',
+              style: _body(textColorPrimary, 18, FontWeight.bold),
+            ),
             const SizedBox(height: 6),
-            Text('Fitur tambahan untuk perjalananmu',
-                style: _body(textColorSecondary, 13, FontWeight.normal)),
+            Text(
+              'Fitur tambahan untuk perjalananmu',
+              style: _body(textColorSecondary, 13, FontWeight.normal),
+            ),
             const SizedBox(height: 20),
             _lainnyaItem(
               icon: Icons.note_alt_outlined,
@@ -402,7 +460,8 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
       child: Row(
         children: [
           Container(
-            width: 44, height: 44,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(13),
@@ -414,15 +473,23 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: _body(textColorPrimary, 14, FontWeight.bold)),
+                Text(
+                  title,
+                  style: _body(textColorPrimary, 14, FontWeight.bold),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle,
-                    style: _body(textColorSecondary, 12, FontWeight.normal)),
+                Text(
+                  subtitle,
+                  style: _body(textColorSecondary, 12, FontWeight.normal),
+                ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, color: textColorSecondary, size: 20),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: textColorSecondary,
+            size: 20,
+          ),
         ],
       ),
     );
@@ -432,14 +499,18 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? kBgDark : kBgLight;
-    final textColorPrimary   = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textColorSecondary = isDark ? Colors.white70 : const Color(0xFF64748B);
-    final inputBg    = isDark ? const Color(0xFF181E10) : Colors.white;
-    final cardBg     = isDark ? const Color(0xFF1A2210) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2A3518) : const Color(0xFFE2E8F0);
+    final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textColorSecondary = isDark
+        ? Colors.white70
+        : const Color(0xFF64748B);
+    final inputBg = isDark ? const Color(0xFF181E10) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1A2210) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF2A3518)
+        : const Color(0xFFE2E8F0);
 
     final svc = _services[_selectedService];
-    final pm  = _paymentMethods[_selectedPayment];
+    final pm = _paymentMethods[_selectedPayment];
     final pmColor = pm['color'] as Color;
 
     return Scaffold(
@@ -456,7 +527,12 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
             ),
           ],
         ),
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).padding.bottom + 24),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          MediaQuery.of(context).padding.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -474,54 +550,63 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                     onTap: () {
                       if (isLainnya) {
                         _showLainnyaSheet(
-                            context,
-                            isDark,
-                            textColorPrimary,
-                            textColorSecondary,
-                            cardBg,
-                            borderColor);
+                          context,
+                          isDark,
+                          textColorPrimary,
+                          textColorSecondary,
+                          cardBg,
+                          borderColor,
+                        );
                       } else {
                         setState(() => _selectedService = i);
                       }
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      margin: EdgeInsets.only(right: i < _services.length - 1 ? 8 : 0),
+                      margin: EdgeInsets.only(
+                        right: i < _services.length - 1 ? 8 : 0,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
                         color: isSel
                             ? kPrimary
                             : (isDark
-                                ? const Color(0xFF232A18)
-                                : const Color(0xFFF1F5F0)),
+                                  ? const Color(0xFF232A18)
+                                  : const Color(0xFFF1F5F0)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: isSel ? Colors.transparent : borderColor),
+                          color: isSel ? Colors.transparent : borderColor,
+                        ),
                         boxShadow: isSel
                             ? [
                                 BoxShadow(
-                                    color: kPrimary.withOpacity(0.25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4))
+                                  color: kPrimary.withOpacity(0.25),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
                               ]
                             : [],
                       ),
                       child: Column(
                         children: [
-                          Icon(s['icon'] as IconData,
-                              size: 26,
-                              color: isSel
-                                  ? const Color(0xFF0F172A)
-                                  : (isDark ? Colors.white54 : Colors.black38)),
+                          Icon(
+                            s['icon'] as IconData,
+                            size: 26,
+                            color: isSel
+                                ? const Color(0xFF0F172A)
+                                : (isDark ? Colors.white54 : Colors.black38),
+                          ),
                           const SizedBox(height: 5),
-                          Text(s['label'] as String,
-                              style: _body(
-                                isSel
-                                    ? const Color(0xFF0F172A)
-                                    : (isDark ? Colors.white54 : Colors.black38),
-                                11,
-                                isSel ? FontWeight.bold : FontWeight.w500,
-                              )),
+                          Text(
+                            s['label'] as String,
+                            style: _body(
+                              isSel
+                                  ? const Color(0xFF0F172A)
+                                  : (isDark ? Colors.white54 : Colors.black38),
+                              11,
+                              isSel ? FontWeight.bold : FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -549,7 +634,11 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                     margin: const EdgeInsets.symmetric(horizontal: 10),
                     color: borderColor,
                   ),
-                  Icon(Icons.schedule_rounded, color: textColorSecondary, size: 16),
+                  Icon(
+                    Icons.schedule_rounded,
+                    color: textColorSecondary,
+                    size: 16,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     '${svc['time']} mnt',
@@ -575,10 +664,19 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
             // ── Payment selector row ──
             GestureDetector(
               onTap: () => _showPaymentSheet(
-                  context, isDark, textColorPrimary, textColorSecondary, cardBg, borderColor),
+                context,
+                isDark,
+                textColorPrimary,
+                textColorSecondary,
+                cardBg,
+                borderColor,
+              ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: pmColor.withOpacity(isDark ? 0.12 : 0.07),
                   borderRadius: BorderRadius.circular(18),
@@ -592,30 +690,54 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                         color: pmColor,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(pm['icon'] as IconData, color: Colors.white, size: 16),
+                      child: Icon(
+                        pm['icon'] as IconData,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(pm['label'] as String,
-                            style: _body(textColorPrimary, 13, FontWeight.bold)),
-                        Text(pm['sub'] as String,
-                            style: _body(textColorSecondary, 11, FontWeight.normal)),
+                        Text(
+                          pm['label'] as String,
+                          style: _body(textColorPrimary, 13, FontWeight.bold),
+                        ),
+                        Text(
+                          pm['sub'] as String,
+                          style: _body(
+                            textColorSecondary,
+                            11,
+                            FontWeight.normal,
+                          ),
+                        ),
                       ],
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: pmColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(99),
                       ),
-                      child: Row(children: [
-                        Text('Ganti', style: _body(pmColor, 11, FontWeight.bold)),
-                        const SizedBox(width: 4),
-                        Icon(Icons.keyboard_arrow_down_rounded, color: pmColor, size: 14),
-                      ]),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Ganti',
+                            style: _body(pmColor, 11, FontWeight.bold),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: pmColor,
+                            size: 14,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -624,7 +746,6 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
 
             const SizedBox(height: 6),
 
-  
             const SizedBox(height: 24),
 
             GestureDetector(
@@ -646,18 +767,30 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.search_rounded, color: Color(0xFF0F172A), size: 22),
+                    const Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 22,
+                    ),
                     const SizedBox(width: 8),
-                    Text('Cari Driver',
-                        style: _body(const Color(0xFF0F172A), 17, FontWeight.bold)),
+                    Text(
+                      'Cari Driver',
+                      style: _body(
+                        const Color(0xFF0F172A),
+                        17,
+                        FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F172A).withOpacity(0.12),
                         borderRadius: BorderRadius.circular(99),
                       ),
-                     
                     ),
                   ],
                 ),
@@ -674,7 +807,10 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Row(
                   children: [
                     const SizedBox(width: 24),
@@ -687,7 +823,10 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                     ),
                     GestureDetector(
                       onTap: widget.onShowHistory,
-                      child: Icon(Icons.receipt_long_rounded, color: textColorPrimary),
+                      child: Icon(
+                        Icons.receipt_long_rounded,
+                        color: textColorPrimary,
+                      ),
                     ),
                   ],
                 ),
@@ -697,8 +836,15 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('PICKUP LOCATION',
-                        style: _body(textColorSecondary, 12, FontWeight.w600, ls: 1)),
+                    Text(
+                      'PICKUP LOCATION',
+                      style: _body(
+                        textColorSecondary,
+                        12,
+                        FontWeight.w600,
+                        ls: 1,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     _locationField(
                       icon: Icons.my_location,
@@ -711,8 +857,15 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                       textColorSecondary: textColorSecondary,
                     ),
                     const SizedBox(height: 16),
-                    Text('DESTINATION',
-                        style: _body(textColorSecondary, 12, FontWeight.w600, ls: 1)),
+                    Text(
+                      'DESTINATION',
+                      style: _body(
+                        textColorSecondary,
+                        12,
+                        FontWeight.w600,
+                        ls: 1,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     _locationField(
                       icon: Icons.location_on_outlined,
@@ -725,10 +878,18 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                       textColorSecondary: textColorSecondary,
                     ),
                     const SizedBox(height: 8),
-                    _historyItem(Icons.history, 'Engineering Faculty South Hall',
-                        textColorSecondary, isDark),
-                    _historyItem(Icons.history, 'Student Dormitory Block C',
-                        textColorSecondary, isDark),
+                    _historyItem(
+                      Icons.history,
+                      'Engineering Faculty South Hall',
+                      textColorSecondary,
+                      isDark,
+                    ),
+                    _historyItem(
+                      Icons.history,
+                      'Student Dormitory Block C',
+                      textColorSecondary,
+                      isDark,
+                    ),
                   ],
                 ),
               ),
@@ -786,9 +947,14 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 12),
-          Text(text,
-              style: _body(
-                isDark ? Colors.white70 : Colors.black87, 14, FontWeight.normal)),
+          Text(
+            text,
+            style: _body(
+              isDark ? Colors.white70 : Colors.black87,
+              14,
+              FontWeight.normal,
+            ),
+          ),
         ],
       ),
     );
@@ -804,8 +970,10 @@ class _ActiveOrderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColorPrimary   = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textColorSecondary = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textColorSecondary = isDark
+        ? Colors.white70
+        : const Color(0xFF64748B);
     final cardColor = isDark ? const Color(0xFF181E10) : Colors.white;
 
     return Scaffold(
@@ -829,14 +997,24 @@ class _ActiveOrderScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.motorcycle_rounded, color: Colors.black87, size: 24),
+              child: const Icon(
+                Icons.motorcycle_rounded,
+                color: Colors.black87,
+                size: 24,
+              ),
             ),
           ),
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
               padding: EdgeInsets.fromLTRB(
-                  16, MediaQuery.of(context).padding.top + 16, 16, 16),
+                16,
+                MediaQuery.of(context).padding.top + 16,
+                16,
+                16,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -850,9 +1028,16 @@ class _ActiveOrderScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _floatingIcon(Icons.arrow_back_rounded, isDark, onTap: onBack),
+                  _floatingIcon(
+                    Icons.arrow_back_rounded,
+                    isDark,
+                    onTap: onBack,
+                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF181E10) : Colors.white,
                       borderRadius: BorderRadius.circular(99),
@@ -869,7 +1054,11 @@ class _ActiveOrderScreen extends StatelessWidget {
                       style: _body(textColorPrimary, 14, FontWeight.bold),
                     ),
                   ),
-                  _floatingIcon(Icons.receipt_long_rounded, isDark, onTap: onShowHistory),
+                  _floatingIcon(
+                    Icons.receipt_long_rounded,
+                    isDark,
+                    onTap: onShowHistory,
+                  ),
                 ],
               ),
             ),
@@ -883,16 +1072,24 @@ class _ActiveOrderScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 _floatingIcon(Icons.remove_rounded, isDark),
                 const SizedBox(height: 8),
-                _floatingIcon(Icons.my_location_rounded, isDark, iconColor: kPrimary),
+                _floatingIcon(
+                  Icons.my_location_rounded,
+                  isDark,
+                  iconColor: kPrimary,
+                ),
               ],
             ),
           ),
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Container(
               decoration: BoxDecoration(
                 color: cardColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.12),
@@ -906,7 +1103,8 @@ class _ActiveOrderScreen extends StatelessWidget {
                 children: [
                   const SizedBox(height: 12),
                   Container(
-                    width: 48, height: 6,
+                    width: 48,
+                    height: 6,
                     decoration: BoxDecoration(
                       color: isDark ? Colors.white30 : Colors.black12,
                       borderRadius: BorderRadius.circular(99),
@@ -927,26 +1125,41 @@ class _ActiveOrderScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     'Driver sedang menuju lokasimu',
-                                    style: _body(textColorPrimary, 18, FontWeight.bold),
+                                    style: _body(
+                                      textColorPrimary,
+                                      18,
+                                      FontWeight.bold,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'Pesanan sedang diproses',
-                                    style: _body(textColorSecondary, 14, FontWeight.normal),
+                                    style: _body(
+                                      textColorSecondary,
+                                      14,
+                                      FontWeight.normal,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(width: 12),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: kPrimary.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(99),
                               ),
                               child: Text(
                                 '3 Menit',
-                                style: _body(textColorPrimary, 14, FontWeight.bold),
+                                style: _body(
+                                  textColorPrimary,
+                                  14,
+                                  FontWeight.bold,
+                                ),
                               ),
                             ),
                           ],
@@ -963,13 +1176,17 @@ class _ActiveOrderScreen extends StatelessWidget {
                           child: Row(
                             children: [
                               SizedBox(
-                                width: 56, height: 56,
+                                width: 56,
+                                height: 56,
                                 child: Stack(
                                   children: [
                                     Container(
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: cardColor, width: 2),
+                                        border: Border.all(
+                                          color: cardColor,
+                                          width: 2,
+                                        ),
                                         image: const DecorationImage(
                                           image: NetworkImage(
                                             'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
@@ -979,7 +1196,8 @@ class _ActiveOrderScreen extends StatelessWidget {
                                       ),
                                     ),
                                     Positioned(
-                                      bottom: 0, right: 0,
+                                      bottom: 0,
+                                      right: 0,
                                       child: Container(
                                         padding: const EdgeInsets.all(2),
                                         decoration: BoxDecoration(
@@ -987,13 +1205,18 @@ class _ActiveOrderScreen extends StatelessWidget {
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
+                                              color: Colors.black.withOpacity(
+                                                0.1,
+                                              ),
                                               blurRadius: 2,
                                             ),
                                           ],
                                         ),
-                                        child: const Icon(Icons.star_rounded,
-                                            color: Colors.amber, size: 14),
+                                        child: const Icon(
+                                          Icons.star_rounded,
+                                          color: Colors.amber,
+                                          size: 14,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1008,14 +1231,26 @@ class _ActiveOrderScreen extends StatelessWidget {
                                       children: [
                                         Text(
                                           'Budi Santoso',
-                                          style: _body(textColorPrimary, 16, FontWeight.bold),
+                                          style: _body(
+                                            textColorPrimary,
+                                            16,
+                                            FontWeight.bold,
+                                          ),
                                         ),
                                         const SizedBox(width: 8),
-                                        Icon(Icons.circle, size: 4, color: textColorSecondary),
+                                        Icon(
+                                          Icons.circle,
+                                          size: 4,
+                                          color: textColorSecondary,
+                                        ),
                                         const SizedBox(width: 8),
                                         Text(
                                           '4.9',
-                                          style: _body(textColorPrimary, 14, FontWeight.w600),
+                                          style: _body(
+                                            textColorPrimary,
+                                            14,
+                                            FontWeight.w600,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1035,8 +1270,11 @@ class _ActiveOrderScreen extends StatelessWidget {
                               ),
                               Row(
                                 children: [
-                                  _actionBtn(Icons.call_outlined,
-                                      kSecondaryGreen, isDark),
+                                  _actionBtn(
+                                    Icons.call_outlined,
+                                    kSecondaryGreen,
+                                    isDark,
+                                  ),
                                 ],
                               ),
                             ],
@@ -1056,18 +1294,26 @@ class _ActiveOrderScreen extends StatelessWidget {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.share_location_rounded,
-                                    color: Colors.black87),
+                                const Icon(
+                                  Icons.share_location_rounded,
+                                  color: Colors.black87,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Bagikan Lokasi',
-                                  style: _body(Colors.black87, 16, FontWeight.bold),
+                                  style: _body(
+                                    Colors.black87,
+                                    16,
+                                    FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+                        SizedBox(
+                          height: MediaQuery.of(context).padding.bottom + 16,
+                        ),
                       ],
                     ),
                   ),
@@ -1080,8 +1326,12 @@ class _ActiveOrderScreen extends StatelessWidget {
     );
   }
 
-  Widget _floatingIcon(IconData icon, bool isDark,
-      {Color? iconColor, VoidCallback? onTap}) {
+  Widget _floatingIcon(
+    IconData icon,
+    bool isDark, {
+    Color? iconColor,
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1099,7 +1349,8 @@ class _ActiveOrderScreen extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          color: iconColor ?? (isDark ? Colors.white70 : const Color(0xFF334155)),
+          color:
+              iconColor ?? (isDark ? Colors.white70 : const Color(0xFF334155)),
           size: 24,
         ),
       ),
@@ -1108,7 +1359,8 @@ class _ActiveOrderScreen extends StatelessWidget {
 
   Widget _actionBtn(IconData icon, Color color, bool isDark) {
     return Container(
-      width: 40, height: 40,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         shape: BoxShape.circle,
@@ -1133,175 +1385,211 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
   int _selectedTab = 0;
 
   List<OrderItem> get _filteredOrders {
-    switch (_selectedTab) {
-      case 1:
-        return _allOrders.where((o) => o.status == 'proses').toList();
-      case 2:
-        return _allOrders.where((o) => o.status == 'selesai').toList();
-      default:
-        return _allOrders;
-    }
+    return const [];
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColorPrimary   = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textColorSecondary = isDark ? Colors.white70 : const Color(0xFF64748B);
-    final bg          = isDark ? kBgDark : kBgLight;
-    final cardBg      = isDark ? const Color(0xFF1A2210) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2A3518) : const Color(0xFFE2E8F0);
+    final textColorPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textColorSecondary = isDark
+        ? Colors.white70
+        : const Color(0xFF64748B);
+    final bg = isDark ? kBgDark : kBgLight;
+    final cardBg = isDark ? const Color(0xFF1A2210) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF2A3518)
+        : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              color: isDark
-                  ? kBgDark.withOpacity(0.95)
-                  : Colors.white.withOpacity(0.9),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: widget.onBack,
-                          child: Container(
-                            width: 40, height: 40,
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF232A18) : Colors.grey[100],
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(Icons.arrow_back_rounded,
-                                color: textColorPrimary, size: 22),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            'Riwayat Pesanan',
-                            textAlign: TextAlign.center,
-                            style: _body(textColorPrimary, 18, FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 40),
-                      ],
-                    ),
+      body: Column(
+        children: [
+          Container(
+            color: isDark
+                ? kBgDark.withOpacity(0.95)
+                : Colors.white.withOpacity(0.9),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  Row(
+                  child: Row(
                     children: [
-                      for (int i = 0; i < 3; i++)
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedTab = i),
-                            child: Container(
-                              padding: const EdgeInsets.only(bottom: 12, top: 8),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: _selectedTab == i
-                                        ? kPrimary
-                                        : Colors.transparent,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                ['Semua', 'Proses', 'Selesai'][i],
-                                textAlign: TextAlign.center,
-                                style: _body(
-                                  _selectedTab == i
-                                      ? textColorPrimary
-                                      : textColorSecondary,
-                                  14,
-                                  _selectedTab == i
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                ),
-                              ),
-                            ),
+                      GestureDetector(
+                        onTap: widget.onBack,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF232A18)
+                                : Colors.grey[100],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: textColorPrimary,
+                            size: 22,
                           ),
                         ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Riwayat Pesanan',
+                          textAlign: TextAlign.center,
+                          style: _body(textColorPrimary, 18, FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 40),
                     ],
                   ),
-                  Divider(height: 1, thickness: 1, color: borderColor),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _filteredOrders.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.receipt_long_outlined,
-                            size: 64,
-                            color: textColorSecondary.withOpacity(0.4),
+                ),
+                Row(
+                  children: [
+                    for (int i = 0; i < 3; i++)
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedTab = i),
+                          child: Container(
+                            padding: const EdgeInsets.only(bottom: 12, top: 8),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: _selectedTab == i
+                                      ? kPrimary
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              ['Semua', 'Proses', 'Selesai'][i],
+                              textAlign: TextAlign.center,
+                              style: _body(
+                                _selectedTab == i
+                                    ? textColorPrimary
+                                    : textColorSecondary,
+                                14,
+                                _selectedTab == i
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Tidak ada pesanan',
-                            style: _body(textColorSecondary, 16, FontWeight.w500),
-                          ),
-                        ],
+                        ),
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      itemCount: _filteredOrders.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final order = _filteredOrders[index];
-                        return _OrderCard(
-                          order: order,
-                          cardBg: cardBg,
-                          borderColor: borderColor,
-                          textColorPrimary: textColorPrimary,
-                          textColorSecondary: textColorSecondary,
-                          isDark: isDark,
-                        );
-                      },
-                    ),
+                  ],
+                ),
+                Divider(height: 1, thickness: 1, color: borderColor),
+              ],
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A2210) : Colors.white,
-          border: Border(top: BorderSide(color: borderColor, width: 1)),
-        ),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 8,
-          top: 8,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _navItem(Icons.home_outlined,          'Beranda', false, textColorSecondary),
-            _navItem(Icons.local_offer_outlined,   'Promo',   false, textColorSecondary),
-            _navItem(Icons.receipt_long_rounded,   'Pesanan', true,  kPrimary),
-            _navItem(Icons.person_outline_rounded, 'Profil',  false, textColorSecondary),
-          ],
-        ),
-      ),
-    );
-  }
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseAuth.instance.currentUser == null
+                  ? null
+                  : FirebaseFirestore.instance
+                        .collection('orders')
+                        .where(
+                          'passengerId',
+                          isEqualTo: FirebaseAuth.instance.currentUser!.uid,
+                        )
+                        .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Gagal memuat riwayat pesanan: ${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: _body(textColorSecondary, 14, FontWeight.normal),
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-  Widget _navItem(IconData icon, String label, bool active, Color color) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: _body(color, 10, active ? FontWeight.bold : FontWeight.normal),
-        ),
-      ],
+                final serviceOrders = <_ServiceOrderData>[];
+                if (snapshot.hasData) {
+                  for (final doc in snapshot.data!.docs) {
+                    final data = doc.data();
+                    final type = data['serviceType'];
+                    if (type != 'makan' && type != 'titip') continue;
+
+                    final item = _ServiceOrderData.fromMap(doc.id, data);
+                    final isDone =
+                        item.status == 'completed' ||
+                        item.status == 'cancelled';
+                    if (_selectedTab == 1 && isDone) continue;
+                    if (_selectedTab == 2 && !isDone) continue;
+                    serviceOrders.add(item);
+                  }
+                }
+                serviceOrders.sort(
+                  (a, b) => b.createdAt.compareTo(a.createdAt),
+                );
+
+                final staticOrders = _filteredOrders;
+                final total = serviceOrders.length + staticOrders.length;
+
+                if (total == 0) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 64,
+                          color: textColorSecondary.withOpacity(0.4),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Tidak ada pesanan',
+                          style: _body(textColorSecondary, 16, FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  itemCount: total,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    if (index < serviceOrders.length) {
+                      return _ServiceOrderCard(
+                        order: serviceOrders[index],
+                        cardBg: cardBg,
+                        borderColor: borderColor,
+                        textColorPrimary: textColorPrimary,
+                        textColorSecondary: textColorSecondary,
+                      );
+                    }
+
+                    final order = staticOrders[index - serviceOrders.length];
+                    return _OrderCard(
+                      order: order,
+                      cardBg: cardBg,
+                      borderColor: borderColor,
+                      textColorPrimary: textColorPrimary,
+                      textColorSecondary: textColorSecondary,
+                      isDark: isDark,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1355,10 +1643,14 @@ class _OrderCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 48, height: 48,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: kPrimary.withOpacity(0.3), width: 2),
+                      border: Border.all(
+                        color: kPrimary.withOpacity(0.3),
+                        width: 2,
+                      ),
                     ),
                     child: ClipOval(
                       child: Image.network(
@@ -1389,7 +1681,10 @@ class _OrderCard extends StatelessWidget {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isProses
                       ? kPrimary.withOpacity(0.2)
@@ -1415,15 +1710,21 @@ class _OrderCard extends StatelessWidget {
                 children: [
                   const SizedBox(height: 2),
                   Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(color: kPrimary, shape: BoxShape.circle),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: kPrimary,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   Container(
-                    width: 1, height: 16,
+                    width: 1,
+                    height: 16,
                     color: isDark ? Colors.white24 : Colors.black12,
                   ),
                   Container(
-                    width: 8, height: 8,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
@@ -1490,7 +1791,11 @@ class _OrderCard extends StatelessWidget {
                   shape: const StadiumBorder(),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                icon: Icon(Icons.replay_rounded, size: 18, color: textColorPrimary),
+                icon: Icon(
+                  Icons.replay_rounded,
+                  size: 18,
+                  color: textColorPrimary,
+                ),
                 label: Text(
                   'Pesan Lagi',
                   style: _body(textColorPrimary, 14, FontWeight.bold),
@@ -1499,6 +1804,234 @@ class _OrderCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Data pesanan layanan Makan / Titip dari koleksi Firestore `orders`.
+class _ServiceOrderData {
+  final String id;
+  final String serviceType;
+  final String items;
+  final String originAddress;
+  final String destinationAddress;
+  final String note;
+  final String status;
+  final DateTime createdAt;
+
+  const _ServiceOrderData({
+    required this.id,
+    required this.serviceType,
+    required this.items,
+    required this.originAddress,
+    required this.destinationAddress,
+    required this.note,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory _ServiceOrderData.fromMap(String id, Map<String, dynamic> data) {
+    return _ServiceOrderData(
+      id: id,
+      serviceType: (data['serviceType'] ?? '').toString(),
+      items: (data['items'] ?? '').toString(),
+      originAddress: (data['originAddress'] ?? '').toString(),
+      destinationAddress: (data['destinationAddress'] ?? '').toString(),
+      note: (data['note'] ?? '').toString(),
+      status: (data['status'] ?? 'pending').toString(),
+      createdAt:
+          DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+
+  bool get isMakan => serviceType == 'makan';
+
+  String get title => isMakan ? 'Pesanan Makan' : 'Titip Barang';
+
+  String get statusLabel {
+    switch (status) {
+      case 'pending':
+        return 'Menunggu';
+      case 'accepted':
+        return 'Diterima';
+      case 'onPickup':
+        return 'Dijemput';
+      case 'onTrip':
+        return 'Diantar';
+      case 'completed':
+        return 'Selesai';
+      case 'cancelled':
+        return 'Batal';
+      default:
+        return status;
+    }
+  }
+
+  String get dateLabel {
+    final d = createdAt;
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.day}/${d.month}/${d.year} • $hh:$mm';
+  }
+}
+
+class _ServiceOrderCard extends StatelessWidget {
+  final _ServiceOrderData order;
+  final Color cardBg;
+  final Color borderColor;
+  final Color textColorPrimary;
+  final Color textColorSecondary;
+
+  const _ServiceOrderCard({
+    required this.order,
+    required this.cardBg,
+    required this.borderColor,
+    required this.textColorPrimary,
+    required this.textColorSecondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = order.isMakan
+        ? const Color(0xFFFF9F43)
+        : const Color(0xFF54A0FF);
+    final isFinished =
+        order.status == 'completed' || order.status == 'cancelled';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isFinished ? borderColor : accent,
+          width: isFinished ? 1 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  order.isMakan
+                      ? Icons.restaurant_rounded
+                      : Icons.shopping_bag_rounded,
+                  color: accent,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.title,
+                      style: _body(textColorPrimary, 14, FontWeight.bold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      order.dateLabel,
+                      style: _body(textColorSecondary, 12, FontWeight.normal),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: isFinished
+                      ? kSecondaryGreen.withOpacity(0.12)
+                      : accent.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  order.statusLabel,
+                  style: _body(
+                    isFinished ? kSecondaryGreen : textColorPrimary,
+                    12,
+                    FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _detailRow(
+            order.isMakan
+                ? Icons.restaurant_menu_rounded
+                : Icons.inventory_2_outlined,
+            order.isMakan ? 'Makanan dipesan' : 'Barang dititip',
+            order.items,
+          ),
+          if (order.originAddress.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _detailRow(
+              Icons.storefront_outlined,
+              order.isMakan ? 'Alamat warung / kantin' : 'Alamat asal',
+              order.originAddress,
+            ),
+          ],
+          if (order.destinationAddress.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _detailRow(
+              Icons.location_on_outlined,
+              order.isMakan ? 'Alamat antar' : 'Antar ke',
+              order.destinationAddress,
+            ),
+          ],
+          if (order.note.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _detailRow(Icons.sticky_note_2_outlined, 'Catatan', order.note),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: textColorSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: _body(textColorSecondary, 12, FontWeight.normal, h: 1.4),
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                  style: _body(textColorSecondary, 12, FontWeight.w600),
+                ),
+                TextSpan(
+                  text: value,
+                  style: _body(textColorPrimary, 12, FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
