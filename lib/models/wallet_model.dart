@@ -3,7 +3,9 @@ enum TransactionType {
   topup,
   payment,
   earning,
+  commission,
   withdrawal,
+  refund,
 }
 
 /// Model dompet user.
@@ -149,10 +151,16 @@ class TransactionModel {
   }
 
   /// Apakah transaksi ini menambah saldo
-  bool get isCredit => type == TransactionType.topup || type == TransactionType.earning;
+  bool get isCredit =>
+      type == TransactionType.topup ||
+      type == TransactionType.earning ||
+      type == TransactionType.refund;
 
   /// Apakah transaksi ini mengurangi saldo
-  bool get isDebit => type == TransactionType.payment || type == TransactionType.withdrawal;
+  bool get isDebit =>
+      type == TransactionType.payment ||
+      type == TransactionType.withdrawal ||
+      type == TransactionType.commission;
 
   /// Prefix +/- untuk tampilan
   String get signedAmount => '${isCredit ? '+' : '-'} $formattedAmount';
@@ -165,8 +173,12 @@ class TransactionModel {
         return TransactionType.payment;
       case 'earning':
         return TransactionType.earning;
+      case 'commission':
+        return TransactionType.commission;
       case 'withdrawal':
         return TransactionType.withdrawal;
+      case 'refund':
+        return TransactionType.refund;
       default:
         return TransactionType.payment;
     }

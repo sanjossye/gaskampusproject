@@ -607,6 +607,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 .collection('documents')
                 .doc(folder)
                 .set({
+                  'docType': folder,
+                  'nik': _isDriverUmum ? _nikController.text.trim() : null,
                   'fileName': _docImage!.name,
                   'contentType': contentType,
                   'base64': base64Encode(_docBytes!),

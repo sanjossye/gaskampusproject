@@ -1,0 +1,17 @@
+ .metadata                                          |   12 [32m+[m[31m-[m
+ lib/models/wallet_model.dart                       |   16 [32m+[m[31m-[m
+ .../driver_umum_pages/driver_umum_home_screen.dart | 1039 [32m++++++++++++++++[m[31m----[m
+ .../driver_umum_profile_screen.dart                |  716 [32m+++++++++++[m[31m---[m
+ .../orders/driver_umum_active_trip_screen.dart     |  548 [32m+++++++[m[31m----[m
+ .../orders/driver_umum_navigation_screen.dart      |  457 [32m+++++[m[31m----[m
+ .../orders/driver_umum_orders_screen.dart          |   23 [32m+[m[31m-[m
+ .../orders/driver_umum_receipt_screen.dart         |  583 [32m+++++[m[31m------[m
+ .../orders/driver_umum_trip_complete_screen.dart   |  535 [32m+++++[m[31m-----[m
+ lib/screens/main_pages/topup_modal.dart            |  312 [32m++++[m[31m--[m
+ lib/screens/register_screen.dart                   |    2 [32m+[m
+ lib/screens/wallet_screen.dart                     |  741 [32m+++++++++++[m[31m---[m
+ lib/services/seed_services.dart                    |   95 [32m+[m[31m-[m
+ linux/flutter/generated_plugins.cmake              |    1 [32m+[m
+ pubspec.lock                                       |  212 [32m++[m[31m--[m
+ windows/flutter/generated_plugins.cmake            |    1 [32m+[m
+ 16 files changed, 3550 insertions(+), 1743 deletions(-)

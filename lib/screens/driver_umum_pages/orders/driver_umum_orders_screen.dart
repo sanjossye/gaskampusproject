@@ -132,7 +132,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               )
@@ -206,7 +206,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: kPrimary.withOpacity(0.2),
+                              color: kPrimary.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
@@ -296,7 +296,18 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const DriverUmumNavigationScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const DriverUmumNavigationScreen(
+                          orderId: 'order_live_01',
+                          passengerName: 'Andi Pratama',
+                          passengerRole: 'Mahasiswa · Fak. Teknik',
+                          fareAmount: 15000,
+                          pickupAddress: 'Stasiun Depok Baru',
+                          dropoffAddress: 'Gedung C - Zona B (Fakultas Teknik)',
+                          paymentMethod: 'GasPay',
+                          zone: 'Zona B',
+                        ),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -307,7 +318,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('JALANKAN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: const Text('JALANKAN NAVIGASI', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -399,7 +410,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
       badgeText = textMuted;
       badgeIcon = Icons.cancel;
     } else {
-      badgeBg = const Color(0xFF68CD5C).withOpacity(0.1);
+      badgeBg = const Color(0xFF68CD5C).withValues(alpha: 0.1);
       badgeText = const Color(0xFF68CD5C);
       badgeIcon = Icons.check_circle;
     }
@@ -412,7 +423,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.01),
+            color: Colors.black.withValues(alpha: 0.01),
             blurRadius: 4,
             offset: const Offset(0, 2),
           )

@@ -1,21 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'driver_umum_trip_complete_screen.dart';
+import '../../../services/trip_service.dart';
 
-const Color kGojekGreen = Color(0xFF68CD5C);
-const Color kGojekNeon = Color(0xFFC1F637);
-const Color kCampusDark = Color(0xFF1A1A1A);
+const Color kPrimary = Color(0xFFC0F637);
+const Color kCampusDark = Color(0xFF1D2210);
 
 class DriverUmumActiveTripScreen extends StatefulWidget {
-  const DriverUmumActiveTripScreen({super.key});
+  final String orderId;
+  final String passengerName;
+  final String passengerRole;
+  final int fareAmount;
+  final String dropoffAddress;
+  final String paymentMethod;
+  final String zone;
+
+  const DriverUmumActiveTripScreen({
+    super.key,
+    this.orderId = 'order_live_01',
+    this.passengerName = 'Andi Pratama',
+    this.passengerRole = 'Mahasiswa · Fak. Teknik',
+    this.fareAmount = 15000,
+    this.dropoffAddress = 'Gedung C - Zona B (Fakultas Teknik)',
+    this.paymentMethod = 'GasPay',
+    this.zone = 'Zona B',
+  });
 
   @override
   State<DriverUmumActiveTripScreen> createState() => _DriverUmumActiveTripScreenState();
 }
 
 class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen> with SingleTickerProviderStateMixin {
+  final TripService _tripService = TripService();
+
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  bool _isCompleting = false;
 
   @override
   void initState() {
@@ -36,6 +57,127 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
     super.dispose();
   }
 
+  void _openGoogleMaps() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Membuka rute Google Maps menuju: ${widget.dropoffAddress}'),
+        backgroundColor: Colors.blueAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showSosDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning, color: Colors.redAccent, size: 28),
+            SizedBox(width: 8),
+            Text('Tombol Darurat (SOS)', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Gunakan jika terjadi ancaman keamanan, kecelakaan, atau kondisi darurat di area kampus.',
+              style: TextStyle(fontSize: 13),
+            ),
+            SizedBox(height: 12),
+            Text('• Telepon Satpam Kampus: 021-7863456', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('• Layanan Darurat Polisi: 110', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('• Lapor Insiden Langsung ke Admin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Sinyal SOS dan titik koordinat telah dikirim ke Pos Satpam Kampus!'),
+                  backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Kirim Sinyal Darurat', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCompleteTrip() async {
+    setState(() => _isCompleting = true);
+    final user = FirebaseAuth.instance.currentUser;
+    final driverId = user?.uid ?? 'driveru_demo';
+
+    try {
+      // README Bagian 10: Eksekusi Keuangan & Bagi Hasil di Cloud Firestore
+      final result = await _tripService.completeTripAndProcessFinancials(
+        orderId: widget.orderId,
+        driverId: driverId,
+        fareAmount: widget.fareAmount,
+        paymentMethod: widget.paymentMethod,
+      );
+
+      if (!mounted) return;
+
+      final bool isCash = result['isCash'] as bool;
+      final int commission = result['commission'] as int;
+      final int netEarnings = result['netEarnings'] as int;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isCash
+                ? 'Trip Selesai! Terima Tunai Rp ${widget.fareAmount}. Komisi 15% (Rp $commission) dipotong dari saldo GasPay.'
+                : 'Trip Selesai! Pendapatan bersih Rp $netEarnings telah masuk ke saldo GasPay kamu.',
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DriverUmumTripCompleteScreen(
+            orderId: widget.orderId,
+            passengerName: widget.passengerName,
+            passengerRole: widget.passengerRole,
+            fareAmount: widget.fareAmount,
+            dropoffAddress: widget.dropoffAddress,
+            paymentMethod: widget.paymentMethod,
+            zone: widget.zone,
+            commission: commission,
+            netEarnings: netEarnings,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyelesaikan trip: $e'), backgroundColor: Colors.redAccent),
+      );
+    } finally {
+      if (mounted) setState(() => _isCompleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
@@ -54,7 +196,7 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
 
           // 1.1 Current Location Dot (Driver)
           Align(
-            alignment: const Alignment(0.1, 0.1), // Approx top 55% left 45%
+            alignment: const Alignment(0.1, 0.1),
             child: AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (context, child) {
@@ -62,12 +204,12 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: Colors.blue[500],
+                    color: Colors.blue[600],
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 4),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.5),
+                        color: Colors.blue.withValues(alpha: 0.5),
                         blurRadius: 10 * _pulseAnimation.value,
                         spreadRadius: 5 * _pulseAnimation.value,
                       ),
@@ -80,7 +222,7 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
 
           // 1.2 Drop-off Destination Marker
           Align(
-            alignment: const Alignment(0.6, -0.4), // Approx top 30% right 20%
+            alignment: const Alignment(0.6, -0.4),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -98,13 +240,12 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[200]!),
-                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)],
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
                   ),
-                  child: const Text(
-                    'Titik Tujuan',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  child: Text(
+                    widget.zone,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black),
                   ),
                 ),
               ],
@@ -114,7 +255,7 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
           // 2. Top Navigation Bar
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -122,146 +263,135 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
                     icon: Icons.arrow_back,
                     onTap: () => Navigator.pop(context),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: kCampusDark,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedBuilder(
-                          animation: _pulseAnimation,
-                          builder: (context, child) {
-                            return Opacity(
-                              opacity: _pulseAnimation.value > 1.0 ? 1.0 : 0.5,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: kGojekNeon,
-                                  shape: BoxShape.circle,
-                                ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.two_wheeler, color: Colors.green, size: 16),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Perjalanan Aktif',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            );
-                          },
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Menuju Tujuan',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                  _buildTopNavButton(
-                    icon: Icons.settings,
-                    onTap: () {},
+                  const SizedBox(width: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Tombol SOS Satpam
+                      GestureDetector(
+                        onTap: _showSosDialog,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                            ],
+                          ),
+                          child: Row(
+                            children: const [
+                              Icon(Icons.warning, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildTopNavButton(
+                        icon: Icons.map_outlined,
+                        onTap: _openGoogleMaps,
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          // 3. Bottom Panel
-          Align(
-            alignment: Alignment.bottomCenter,
+          // 3. Navigation Info Card (Bottom Sheet)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+              decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 20,
-                    offset: Offset(0, -4),
-                  )
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -2)),
                 ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Passenger Details
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Destination and ETA
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: kPrimary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.navigation, color: Colors.black87, size: 28),
+                      ),
+                      const SizedBox(width: 14),
                       Expanded(
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Stack(
-                              children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: kGojekGreen, width: 2),
-                                    image: const DecorationImage(
-                                      image: NetworkImage(
-                                          'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=200'),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: -4,
-                                  right: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(Icons.star, color: Colors.black, size: 8),
-                                        SizedBox(width: 2),
-                                        Text('4.9', style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              'Menuju Lokasi Tujuan (${widget.zone})',
+                              style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Budi Santoso',
-                                    style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  RichText(
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    text: const TextSpan(
-                                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                                      children: [
-                                        TextSpan(text: 'Tujuan: ', style: TextStyle(fontWeight: FontWeight.w500, color: Colors.black54)),
-                                        TextSpan(text: 'Margonda Residence'),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.dropoffAddress,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tarif: Rp ${widget.fareAmount} · ${widget.paymentMethod}',
+                              style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -269,73 +399,84 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: const [
-                          Text(
-                            '5 min',
-                            style: TextStyle(
-                              color: kGojekGreen,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                          Text('6 min', style: TextStyle(color: Colors.green, fontSize: 18, fontWeight: FontWeight.w900)),
+                          Text('ESTIMASI', style: TextStyle(color: Colors.grey, fontSize: 9, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const Divider(height: 24),
+
+                  // Passenger Info & Actions
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: kPrimary.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
                             ),
+                            child: const Icon(Icons.person, color: Colors.black87, size: 24),
                           ),
-                          Text(
-                            'KE TUJUAN',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(widget.passengerName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                              Text(widget.passengerRole, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _buildCircleAction(
+                            icon: Icons.chat_bubble_outline,
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Membuka chat penumpang...'), behavior: SnackBarBehavior.floating),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildCircleAction(
+                            icon: Icons.phone_outlined,
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Menghubungi telepon penumpang...'), behavior: SnackBarBehavior.floating),
+                              );
+                            },
                           ),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.phone_outlined,
-                          label: 'Telpon',
-                          onTap: () {},
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Main Confirmation
+
+                  const SizedBox(height: 20),
+
+                  // Selesaikan Perjalanan Button
                   SizedBox(
                     width: double.infinity,
+                    height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Perjalanan Selesai! Menampilkan Ringkasan.')),
-                        );
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const DriverUmumTripCompleteScreen()),
-                        );
-                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: kGojekNeon,
-                        foregroundColor: kCampusDark,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 4,
-                        shadowColor: kGojekNeon.withOpacity(0.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        backgroundColor: kPrimary,
+                        foregroundColor: Colors.black,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: const Text(
-                        'Selesaikan Perjalanan',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      onPressed: _isCompleting ? null : _handleCompleteTrip,
+                      child: _isCompleting
+                          ? const CircularProgressIndicator(color: Colors.black)
+                          : const Text(
+                              'Selesaikan Perjalanan (Tiba di Tujuan)',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ),
                 ],
@@ -354,42 +495,27 @@ class _DriverUmumActiveTripScreenState extends State<DriverUmumActiveTripScreen>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: 0.9),
           shape: BoxShape.circle,
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2))],
         ),
-        child: Icon(icon, color: Colors.black87, size: 24),
+        child: Icon(icon, color: Colors.black87, size: 22),
       ),
     );
   }
 
-  Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildCircleAction({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: kGojekGreen.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.grey[100],
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.grey[300]!),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: kGojekGreen, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: kGojekGreen,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+        child: Icon(icon, color: Colors.black87, size: 18),
       ),
     );
   }

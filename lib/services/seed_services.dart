@@ -114,6 +114,7 @@ class SeedService {
       'email': 'driveru.demo@gaskampus-dev.com',
       'name': 'Agus Prabowo',
       'role': 'driver_umum',
+      'nik': '3276012345670001',
       // tanpa NIM
       'phone': '081200000003',
       'isVerified': true,
@@ -133,6 +134,7 @@ class SeedService {
       'email': 'driveru2.demo@gaskampus-dev.com',
       'name': 'Rizky Pratama',
       'role': 'driver_umum',
+      'nik': '3276012345670013',
       // tanpa NIM
       'phone': '081200000013',
       'isVerified': true,
@@ -283,12 +285,103 @@ class SeedService {
       }
 
       // ── 6. Wallet ─────────────────────────────────────────────────────────
+      final walletBal = u['walletBalance'] ?? (u['role'] == 'mahasiswa' ? 50000 : 0);
       await _db.collection('wallets').doc(uid).set({
         'userId': uid,
-        'balance': u['walletBalance'] ?? (u['role'] == 'mahasiswa' ? 50000 : 0),
+        'balance': walletBal,
         'coins': u['walletCoins'] ?? 0,
         'updatedAt': now,
       });
+
+      // Transaksi awal dompet demo
+      await _db
+          .collection('wallets')
+          .doc(uid)
+          .collection('transactions')
+          .doc('init_balance')
+          .set({
+        'transactionId': 'init_balance',
+        'walletId': uid,
+        'type': 'topup',
+        'amount': walletBal,
+        'description': 'Saldo Awal Akun Demo',
+        'createdAt': now,
+      });
+
+      // ── 7. Dokumen (KTP untuk Driver Umum, KTM untuk Mahasiswa) ─────────────
+      if (u['role'] == 'driver_umum') {
+        final nik = u['nik'] ?? '3276012345670001';
+        // Subkoleksi documents/ktp
+        await _db
+            .collection('users')
+            .doc(uid)
+            .collection('documents')
+            .doc('ktp')
+            .set({
+          'base64':
+              '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+          'contentType': 'image/jpeg',
+          'fileName': 'scaled_IMG_0226.jpg',
+          'nik': nik,
+          'uploadedAt': now,
+          'docType': 'ktp',
+        });
+
+        // Subkoleksi documents/sim
+        await _db
+            .collection('users')
+            .doc(uid)
+            .collection('documents')
+            .doc('sim')
+            .set({
+          'base64':
+              '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+          'contentType': 'image/jpeg',
+          'fileName': 'sim_c_driver.jpg',
+          'uploadedAt': now,
+          'docType': 'sim',
+        });
+
+        // Buat 1 contoh pesanan aktif dan 1 riwayat selesai untuk driver umum
+        if (username == 'driveru') {
+          // Order Selesai (GasPay)
+          await _db.collection('orders').doc('demo_order_completed').set({
+            'orderId': 'demo_order_completed',
+            'driverId': uid,
+            'passengerName': 'Andi Pratama',
+            'passengerPhone': '08123456789',
+            'passengerRole': 'mahasiswa',
+            'pickupAddress': 'Stasiun Depok Baru',
+            'dropoffAddress': 'Gedung C - Zona B (Fakultas Teknik)',
+            'destinationZoneId': 'Zona B',
+            'fareAmount': 15000,
+            'commissionAmount': 2250,
+            'netEarnings': 12750,
+            'paymentMethod': 'GasPay',
+            'matchTier': 3,
+            'distanceKm': 2.5,
+            'status': 'completed',
+            'createdAt': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+            'completedAt': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+          });
+
+          // Transaksi pendapatan
+          await _db
+              .collection('wallets')
+              .doc(uid)
+              .collection('transactions')
+              .doc('tx_order_demo')
+              .set({
+            'transactionId': 'tx_order_demo',
+            'walletId': uid,
+            'type': 'earning',
+            'amount': 12750,
+            'description': 'Pendapatan Bersih Trip GasPay #demo_order_completed (Tarif Rp 15.000 - Komisi Rp 2.250)',
+            'relatedOrderId': 'demo_order_completed',
+            'createdAt': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+          });
+        }
+      }
 
       log.add('Firestore diisi: users/$uid (${u['role']})');
       await _auth.signOut();
