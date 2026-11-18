@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'orders/driver_umum_orders_screen.dart';
 import 'orders/driver_umum_navigation_screen.dart';
 import 'jadwal/driver_umum_jadwal_screen.dart';
@@ -11,6 +13,7 @@ import '../notifications_screen.dart';
 import '../wallet_screen.dart';
 import '../../services/trip_service.dart';
 import '../../services/document_service.dart';
+import '../../services/map_route_service.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -33,7 +36,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
 
   // Data profil dari Firestore
   String _driverName = 'Agus Prabowo';
-  String _vehiclePlate = 'D 5678 UMM';
+  String _vehiclePlate = 'BK 5678 UMM';
   String _vehicleBrand = 'Honda Beat';
   double _rating = 4.8;
   int _totalTrips = 512;
@@ -45,6 +48,14 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   // Stream subscription
   StreamSubscription? _userSub;
   StreamSubscription? _walletSub;
+  StreamSubscription<DriverGpsResult>? _gpsStreamSub;
+
+  // Lokasi perangkat real-time (GPS)
+  LatLng _driverGps = MapRouteService.lastKnownDriverGps?.position ??
+      MapRouteService.defaultDriverSpawn;
+  String _driverAddress = 'Mendeteksi lokasi perangkat...';
+  bool _isRealGps = MapRouteService.lastKnownDriverGps?.isRealDeviceGps ?? false;
+  DateTime _lastGeocodeTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Timer dialog orderan masuk
   Timer? _orderTimer;
@@ -59,11 +70,11 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
       {
         'orderId': 'order_live_01',
         'name': 'Andi Pratama',
-        'desc': 'Mahasiswa · Fak. Teknik',
+        'desc': 'Mahasiswa · Fak. Teknik USU',
         'price': 'Rp 15.000',
         'fareAmount': 15000,
-        'from': 'Stasiun Depok Baru',
-        'to': 'Gedung C - Zona B (Fakultas Teknik)',
+        'from': 'Stasiun Medan',
+        'to': 'Gedung C - Zona B (Fakultas Teknik USU)',
         'zone': 'Zona B',
         'payment': 'GasPay',
         'isPrimary': true,
@@ -71,11 +82,11 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
       {
         'orderId': 'order_live_02',
         'name': 'Siti Aisyah',
-        'desc': 'Mahasiswa · Vokasi UI',
+        'desc': 'Mahasiswa · Vokasi USU',
         'price': 'Rp 18.500',
         'fareAmount': 18500,
-        'from': 'Margo City Mall',
-        'to': 'Balairung - Zona A (Rektorat)',
+        'from': 'Plaza Medan Fair',
+        'to': 'Biro Rektor - Zona A (Rektorat USU)',
         'zone': 'Zona A',
         'payment': 'Tunai',
         'isPrimary': false,
@@ -83,6 +94,38 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
     ];
 
     _listenToFirebaseData();
+    _initDeviceGps();
+  }
+
+  Future<void> _initDeviceGps() async {
+    final gps = await MapRouteService.getCurrentDriverPosition();
+    if (!mounted) return;
+    setState(() {
+      _driverGps = gps.position;
+      _isRealGps = gps.isRealDeviceGps;
+    });
+    await _refreshDriverAddress(gps.position);
+
+    _gpsStreamSub?.cancel();
+    _gpsStreamSub = MapRouteService.watchDriverPosition().listen((liveGps) {
+      if (!mounted) return;
+      final moved = MapRouteService.distanceInMeters(_driverGps, liveGps.position);
+      setState(() {
+        _driverGps = liveGps.position;
+        _isRealGps = true;
+      });
+      if (moved > 35 ||
+          DateTime.now().difference(_lastGeocodeTime).inSeconds > 20) {
+        _refreshDriverAddress(liveGps.position);
+      }
+    });
+  }
+
+  Future<void> _refreshDriverAddress(LatLng pos) async {
+    _lastGeocodeTime = DateTime.now();
+    final addr = await MapRouteService.reverseGeocodePosition(pos);
+    if (!mounted) return;
+    setState(() => _driverAddress = addr);
   }
 
   @override
@@ -90,6 +133,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
     _orderTimer?.cancel();
     _userSub?.cancel();
     _walletSub?.cancel();
+    _gpsStreamSub?.cancel();
     super.dispose();
   }
 
@@ -140,7 +184,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
       if (!doc.exists) {
         await _docService.uploadKtpDriverUmum(
           uid: uid,
-          nik: '3276012345670001',
+          nik: '1271012345670001',
           fileName: 'scaled_IMG_0226.jpg',
         );
       }
@@ -347,7 +391,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  order['from'] ?? 'Stasiun Depok Baru',
+                                  order['from'] ?? 'Stasiun Medan',
                                   style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w500),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -371,13 +415,41 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  order['to'] ?? 'Gedung C - Zona B (Fak. Teknik)',
+                                  order['to'] ?? 'Gedung C - Zona B (Fakultas Teknik USU)',
                                   style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 10),
+                          Builder(
+                            builder: (_) {
+                              final metrics = MapRouteService.estimateMetricsFromDevice(
+                                _driverGps,
+                                order['from'] ?? 'Stasiun Medan',
+                                fallbackZone: order['zone'],
+                              );
+                              final distKm = (metrics['distanceKm'] as double).toStringAsFixed(1);
+                              final eta = metrics['etaMinutes'] as int;
+                              return Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: kPrimary.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'Jarak ke penumpang: $distKm km (~$eta mnt) dari lokasi Anda',
+                                  style: TextStyle(
+                                    color: isDark ? kPrimary : kBackgroundDark,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -437,10 +509,10 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                                   builder: (_) => DriverUmumNavigationScreen(
                                     orderId: order['orderId'] ?? 'order_live_01',
                                     passengerName: order['name'] ?? 'Andi Pratama',
-                                    passengerRole: order['desc'] ?? 'Mahasiswa · Fak. Teknik',
+                                    passengerRole: order['desc'] ?? 'Mahasiswa · Fak. Teknik USU',
                                     fareAmount: order['fareAmount'] ?? 15000,
-                                    pickupAddress: order['from'] ?? 'Stasiun Depok Baru',
-                                    dropoffAddress: order['to'] ?? 'Gedung C - Zona B (Fak. Teknik)',
+                                    pickupAddress: order['from'] ?? 'Stasiun Medan',
+                                    dropoffAddress: order['to'] ?? 'Gedung C - Zona B (Fakultas Teknik USU)',
                                     paymentMethod: order['payment'] ?? 'GasPay',
                                     zone: order['zone'] ?? 'Zona B',
                                   ),
@@ -752,6 +824,74 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                   onChanged: (val) => _updateOnlineStatus(val),
                   activeThumbColor: kPrimary,
                   activeTrackColor: kPrimary.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Live Device GPS Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isRealGps ? Icons.gps_fixed : Icons.location_searching,
+                  color: _isRealGps ? Colors.green : Colors.orange,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _driverAddress,
+                        style: TextStyle(
+                          color: textColorPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${_driverGps.latitude.toStringAsFixed(4)}, ${_driverGps.longitude.toStringAsFixed(4)}',
+                        style: TextStyle(color: textColorSecondary, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _isRealGps
+                        ? Colors.green.withValues(alpha: 0.14)
+                        : kPrimary.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _isRealGps ? 'GPS ASLI' : 'SIMULASI MEDAN',
+                    style: TextStyle(
+                      color: _isRealGps ? Colors.green[700] : Colors.black87,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: _initDeviceGps,
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.refresh_rounded, color: kPrimary, size: 18),
+                  ),
                 ),
               ],
             ),
@@ -1122,6 +1262,19 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                   price,
                   style: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w900),
                 ),
+                Builder(
+                  builder: (_) {
+                    final metrics = MapRouteService.estimateMetricsFromDevice(_driverGps, from);
+                    final km = (metrics['distanceKm'] as double).toStringAsFixed(1);
+                    final eta = metrics['etaMinutes'] as int;
+                    return Text(
+                      'Jemput: $km km (~$eta mnt) · $from',
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1312,77 +1465,12 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   void _showHotspotRadarModal(bool isDark) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.radar, color: kPrimary, size: 24),
-                      SizedBox(width: 8),
-                      Text('Radar Hotspot Penjemputan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Zona kumpul mahasiswa dengan permintaan order tinggi saat ini:',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              _buildHotspotItem('Kantin Vokasi & Fak. Teknik (Zona B)', '12 Order menunggu · Tunggu 3m', isDark),
-              _buildHotspotItem('Stasiun Pondok Cina - Gerbatama (Zona A)', '8 Order menunggu · Tunggu 5m', isDark),
-              _buildHotspotItem('Kosan Ciseke & Margonda (Zona D)', '15 Order menunggu · Tunggu 2m', isDark),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildHotspotItem(String title, String subtitle, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.15), shape: BoxShape.circle),
-              child: const Icon(Icons.near_me, color: kPrimary, size: 16),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      builder: (ctx) => _HotspotRadarSheet(isDark: isDark),
     );
   }
 
@@ -1390,6 +1478,272 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]}.',
+    );
+  }
+}
+
+class _HotspotRadarSheet extends StatefulWidget {
+  final bool isDark;
+  const _HotspotRadarSheet({required this.isDark});
+
+  @override
+  State<_HotspotRadarSheet> createState() => _HotspotRadarSheetState();
+}
+
+class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
+  final MapController _radarMapController = MapController();
+  late final List<CampusZoneInfo> _zones;
+  String _selectedZoneId = 'Zona B';
+  bool _isMapReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _zones = MapRouteService.getCampusZones();
+  }
+
+  @override
+  void dispose() {
+    _radarMapController.dispose();
+    super.dispose();
+  }
+
+  void _focusZone(CampusZoneInfo zone) {
+    setState(() => _selectedZoneId = zone.id);
+    if (_isMapReady) {
+      _radarMapController.move(zone.center, 15.6);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mapStyle = widget.isDark ? GasMapStyle.dark : GasMapStyle.street;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: const [
+                      Icon(Icons.radar, color: kPrimary, size: 22),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Radar Hotspot Penjemputan',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Text(
+              'Peta live zona kumpul mahasiswa & permintaan order tinggi:',
+              style: TextStyle(color: Colors.grey, fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+
+            // Peta Asli Hotspot Kampus UI
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox(
+                height: 220,
+                width: double.infinity,
+                child: GasKampusLiveMap(
+                  mapController: _radarMapController,
+                  mapStyle: mapStyle,
+                  initialCenter: MapRouteService.defaultKampusCenter,
+                  initialZoom: 14.3,
+                  onMapReady: () => _isMapReady = true,
+                  markers: _zones.map((zone) {
+                    final isSelected = zone.id == _selectedZoneId;
+                    return Marker(
+                      point: zone.center,
+                      width: 68,
+                      height: 44,
+                      child: GestureDetector(
+                        onTap: () => _focusZone(zone),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? kPrimary
+                                : const Color(0xFF1D2210),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected ? Colors.black : zone.color,
+                              width: 2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black38,
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${zone.waitingOrders} Order',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: isSelected
+                                      ? Colors.black
+                                      : Colors.white,
+                                ),
+                              ),
+                              Text(
+                                zone.id,
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? Colors.black87
+                                      : zone.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 210),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _zones.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final zone = _zones[index];
+                  final isSelected = zone.id == _selectedZoneId;
+                  return InkWell(
+                    onTap: () => _focusZone(zone),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? kPrimary.withValues(alpha: 0.14)
+                            : (widget.isDark
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFF8FAFC)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? kPrimary
+                              : (widget.isDark
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFE2E8F0)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: zone.color.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.near_me,
+                              color: zone.color,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  zone.hotspotTitle,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12.5,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${zone.waitingOrders} Order menunggu · Estimasi ${zone.waitMinutes}m',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          IconButton(
+                            tooltip: 'Buka Google Maps ke ${zone.id}',
+                            onPressed: () {
+                              MapRouteService.openGoogleMapsNavigation(
+                                destination: zone.center,
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.directions_rounded,
+                              color: kPrimary,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

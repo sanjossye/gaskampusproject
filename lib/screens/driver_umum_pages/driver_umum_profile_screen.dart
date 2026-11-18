@@ -22,8 +22,8 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
 
   String _name = 'Agus Prabowo';
   String _phone = '+62 812-0000-0003';
-  String _nik = '3276012345670001';
-  String _vehiclePlate = 'D 5678 UMM';
+  String _nik = '1271012345670001';
+  String _vehiclePlate = 'BK 5678 UMM';
   String _vehicleBrand = 'Honda Beat';
   double _rating = 4.8;
   int _totalTrips = 512;
@@ -388,7 +388,7 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
                           _buildMenuItem(
                             icon: Icons.local_police_outlined,
                             title: 'Pusat Keamanan & Kontak Satpam',
-                            subtitle: 'Pos Satpam UI 021-7863456',
+                            subtitle: 'Pos Satpam USU Medan 061-8211633',
                             isDark: isDark,
                             textColor: textColor,
                             textMutedColor: textMutedColor,
@@ -841,10 +841,10 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text('Kontak Darurat Resmi Kampus UI:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('Kontak Darurat Resmi Kampus USU Medan:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             SizedBox(height: 6),
-            Text('• Pos Satpam Pusat: 021-7863456', style: TextStyle(fontSize: 13)),
-            Text('• PKD Fakultas Teknik: 021-7863504', style: TextStyle(fontSize: 13)),
+            Text('• Pos Satpam Pusat USU: 061-8211633', style: TextStyle(fontSize: 13)),
+            Text('• PKD Fakultas Teknik USU: 061-8212090', style: TextStyle(fontSize: 13)),
             Text('• Hotline GasKampus 24 Jam: 0812-9988-7766', style: TextStyle(fontSize: 13)),
           ],
         ),

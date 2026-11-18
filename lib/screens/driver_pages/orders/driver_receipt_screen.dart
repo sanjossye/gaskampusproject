@@ -292,7 +292,7 @@ class _DriverReceiptScreenState extends State<DriverReceiptScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Gerbang Utama Kampus UI, Depok',
+                                          'Gerbang Utama Kampus USU (Pintu 1), Medan',
                                           style: TextStyle(
                                             color: textColor,
                                             fontSize: 14,
@@ -336,7 +336,7 @@ class _DriverReceiptScreenState extends State<DriverReceiptScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Perpustakaan Pusat UI, Gedung Crystal of Knowledge',
+                                      'Perpustakaan Pusat USU, Padang Bulan Medan',
                                       style: TextStyle(
                                         color: textColor,
                                         fontSize: 14,

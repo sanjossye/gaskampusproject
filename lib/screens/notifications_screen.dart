@@ -46,7 +46,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationModel(
       id: '2',
       title: 'Penutupan Jalur Kampus',
-      desc: 'Informasi: Jalur utama Gerbatama ditutup sementara karena ada kegiatan wisuda. Silahkan gunakan jalur alternatif.',
+      desc: 'Informasi: Jalur utama Pintu 1 USU (Jl. Dr. Mansyur Medan) ditutup sementara karena ada kegiatan wisuda. Silahkan gunakan jalur Pintu 4 Padang Bulan.',
       time: '07:30',
       date: DateTime.now(),
       icon: Icons.warning_amber_rounded,

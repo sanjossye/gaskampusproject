@@ -320,7 +320,7 @@ class _DriverTripCompleteScreenState extends State<DriverTripCompleteScreen>
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Perpustakaan Pusat',
+                                'Perpustakaan Pusat USU, Padang Bulan Medan',
                                 style: TextStyle(
                                   color: Colors.grey[400],
                                   fontSize: 11,

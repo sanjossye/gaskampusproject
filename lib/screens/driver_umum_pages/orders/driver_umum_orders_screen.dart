@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'driver_umum_navigation_screen.dart';
+import '../../../services/map_route_service.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -16,11 +18,20 @@ class DriverUmumOrdersScreen extends StatefulWidget {
 class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  LatLng _devicePos = MapRouteService.lastKnownDriverGps?.position ??
+      MapRouteService.defaultDriverSpawn;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadDeviceGps();
+  }
+
+  Future<void> _loadDeviceGps() async {
+    final gps = await MapRouteService.getCurrentDriverPosition();
+    if (!mounted) return;
+    setState(() => _devicePos = gps.position);
   }
 
   @override
@@ -225,7 +236,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text('PICKUP', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                              Text('Stasiun Depok Baru', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                              Text('Stasiun Medan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
                             ],
                           ),
                         ],
@@ -249,7 +260,7 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text('DROPOFF', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                              Text('Margonda Residence', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                              Text('Taman Setia Budi Indah (Tasbi)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
                             ],
                           ),
                         ],
@@ -260,7 +271,41 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
               ),
               const SizedBox(height: 24),
               
-              // Price and GOPAY
+              // Price, live pickup distance and payment
+              Builder(
+                builder: (_) {
+                  final metrics = MapRouteService.estimateMetricsFromDevice(
+                    _devicePos,
+                    'Stasiun Medan',
+                  );
+                  final km = (metrics['distanceKm'] as double).toStringAsFixed(1);
+                  final eta = metrics['etaMinutes'] as int;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: kPrimary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.my_location, size: 15, color: isDark ? kPrimary : kBackgroundDark),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Jarak jemput: $km km (~$eta mnt dari lokasi Anda)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? kPrimary : kBackgroundDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               Container(
                 padding: const EdgeInsets.only(top: 16, bottom: 24),
                 decoration: BoxDecoration(
@@ -300,10 +345,10 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
                         builder: (context) => const DriverUmumNavigationScreen(
                           orderId: 'order_live_01',
                           passengerName: 'Andi Pratama',
-                          passengerRole: 'Mahasiswa · Fak. Teknik',
+                          passengerRole: 'Mahasiswa · Fak. Teknik USU',
                           fareAmount: 15000,
-                          pickupAddress: 'Stasiun Depok Baru',
-                          dropoffAddress: 'Gedung C - Zona B (Fakultas Teknik)',
+                          pickupAddress: 'Stasiun Medan',
+                          dropoffAddress: 'Gedung C - Zona B (Fakultas Teknik USU)',
                           paymentMethod: 'GasPay',
                           zone: 'Zona B',
                         ),
@@ -342,8 +387,8 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
           name: 'Andi Pratama',
           time: 'Hari Ini, 10:30',
           price: 'Rp 15.000',
-          pickup: 'Margo City Mall',
-          dropoff: 'Pesona Square',
+          pickup: 'Plaza Medan Fair',
+          dropoff: 'Sun Plaza Medan',
           status: 'Selesai',
           imageUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=200',
         ),
@@ -353,8 +398,8 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
           name: 'Rizky Pratama',
           time: 'Kemarin, 13:20',
           price: 'Rp 18.500',
-          pickup: 'Dmall Depok',
-          dropoff: 'ITC Depok',
+          pickup: 'Manhattan Times Square',
+          dropoff: 'Ringroad City Walks',
           status: 'Selesai',
           imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
         ),
@@ -376,8 +421,8 @@ class _DriverUmumOrdersScreenState extends State<DriverUmumOrdersScreen>
           name: 'Siti Aminah',
           time: 'Kemarin, 16:15',
           price: 'Rp 12.000',
-          pickup: 'Stasiun UI',
-          dropoff: 'Pondok Cina',
+          pickup: 'Pintu 1 USU (Jl. Dr. Mansyur)',
+          dropoff: 'Padang Bulan Medan',
           status: 'Batal',
           isCancelled: true,
           imageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',

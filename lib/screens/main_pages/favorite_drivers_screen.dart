@@ -21,9 +21,9 @@ class FavoriteDriversScreen extends StatelessWidget {
     final border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     final drivers = [
-      {'name': 'Budi Santoso', 'plat': 'B 1234 GJK', 'rating': '4.9'},
-      {'name': 'Andi Wijaya', 'plat': 'D 5678 GJK', 'rating': '4.8'},
-      {'name': 'Rizky Pratama', 'plat': 'Z 9012 GJK', 'rating': '5.0'},
+      {'name': 'Budi Santoso', 'plat': 'BK 1234 GKS', 'rating': '4.9'},
+      {'name': 'Andi Wijaya', 'plat': 'BK 4567 KMP', 'rating': '4.8'},
+      {'name': 'Rizky Pratama', 'plat': 'BK 5678 UMM', 'rating': '5.0'},
     ];
 
     return Scaffold(

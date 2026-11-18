@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
 import '../orders/driver_orders_screen.dart';
 import '../jadwal/driver_jadwal_screen.dart';
 import '../profile/driver_profile_screen.dart';
 import '../../notifications_screen.dart';
 import '../../wallet_screen.dart';
+import '../../../services/map_route_service.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -24,6 +27,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   // Modified: Using a non-final list initialized in initState
   List<Map<String, dynamic>> _activeOrders = [];
+  LatLng _driverGps = MapRouteService.lastKnownDriverGps?.position ??
+      MapRouteService.defaultDriverSpawn;
+  StreamSubscription<DriverGpsResult>? _gpsSub;
 
   @override
   void initState() {
@@ -32,18 +38,36 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       {
         'name': 'Andi Pratama',
         'price': 'Rp 12.000',
-        'from': 'Gedung Perpustakaan Pusat',
-        'to': 'Fakultas Teknik - Gerbatama',
+        'from': 'Gedung Perpustakaan Pusat USU',
+        'to': 'Fakultas Teknik USU - Pintu 1',
         'isPrimary': true,
       },
       {
         'name': 'Siti Aisyah',
         'price': 'Rp 15.500',
-        'from': 'Kantin Sastra',
-        'to': 'Stasiun UI',
+        'from': 'Kantin FIB USU',
+        'to': 'Pintu 4 USU (Padang Bulan)',
         'isPrimary': false,
       },
     ];
+    _initDeviceGps();
+  }
+
+  Future<void> _initDeviceGps() async {
+    final gps = await MapRouteService.getCurrentDriverPosition();
+    if (!mounted) return;
+    setState(() => _driverGps = gps.position);
+
+    _gpsSub = MapRouteService.watchDriverPosition().listen((liveGps) {
+      if (!mounted) return;
+      setState(() => _driverGps = liveGps.position);
+    });
+  }
+
+  @override
+  void dispose() {
+    _gpsSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -203,7 +227,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         children: [
                           Icon(Icons.location_on, size: 14, color: textColorSecondary),
                           const SizedBox(width: 4),
-                          Text('FMIPA - Universitas Indonesia',
+                          Text('FMIPA - Universitas Sumatera Utara',
                               style: TextStyle(color: textColorSecondary, fontSize: 12)),
                         ],
                       ),
@@ -603,6 +627,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 Text(
                   price,
                   style: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w900),
+                ),
+                Builder(
+                  builder: (_) {
+                    final metrics = MapRouteService.estimateMetricsFromDevice(_driverGps, from);
+                    final km = (metrics['distanceKm'] as double).toStringAsFixed(1);
+                    return Text(
+                      'Jarak jemput: $km km dari lokasi Anda',
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ],
             ),

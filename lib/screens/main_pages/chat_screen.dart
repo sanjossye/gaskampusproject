@@ -261,7 +261,7 @@ class ChatScreen extends StatelessWidget {
                 children: [
                   Text('DRIVER LOCATION', style: _body(ts, 10, FontWeight.bold, ls: 0.5)),
                   const SizedBox(height: 2),
-                  Text('Gedung Perpustakaan Pusat', style: _body(tp, 13, FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('Gedung Perpustakaan Pusat USU', style: _body(tp, 13, FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),

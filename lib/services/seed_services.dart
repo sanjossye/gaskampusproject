@@ -73,7 +73,7 @@ class SeedService {
       'walletCoins': 500,
       'driverProfile': {
         'vehicleType': 'motor',
-        'vehiclePlate': 'D 1234 GKS',
+        'vehiclePlate': 'BK 1234 GKS',
         'vehicleBrand': 'Honda Vario 125',
         'isOnline': true,
       },
@@ -98,7 +98,7 @@ class SeedService {
       'walletCoins': 750,
       'driverProfile': {
         'vehicleType': 'motor',
-        'vehiclePlate': 'D 4567 KMP',
+        'vehiclePlate': 'BK 4567 KMP',
         'vehicleBrand': 'Yamaha Fazzio',
         'isOnline': true,
       },
@@ -114,7 +114,7 @@ class SeedService {
       'email': 'driveru.demo@gaskampus-dev.com',
       'name': 'Agus Prabowo',
       'role': 'driver_umum',
-      'nik': '3276012345670001',
+      'nik': '1271012345670001',
       // tanpa NIM
       'phone': '081200000003',
       'isVerified': true,
@@ -124,7 +124,7 @@ class SeedService {
       'walletCoins': 300,
       'driverProfile': {
         'vehicleType': 'motor',
-        'vehiclePlate': 'D 5678 UMM',
+        'vehiclePlate': 'BK 5678 UMM',
         'vehicleBrand': 'Honda Beat',
         'isOnline': true,
       },
@@ -134,7 +134,7 @@ class SeedService {
       'email': 'driveru2.demo@gaskampus-dev.com',
       'name': 'Rizky Pratama',
       'role': 'driver_umum',
-      'nik': '3276012345670013',
+      'nik': '1271012345670013',
       // tanpa NIM
       'phone': '081200000013',
       'isVerified': true,
@@ -144,7 +144,7 @@ class SeedService {
       'walletCoins': 100,
       'driverProfile': {
         'vehicleType': 'motor',
-        'vehiclePlate': 'D 9012 UMM',
+        'vehiclePlate': 'BK 9012 UMM',
         'vehicleBrand': 'Honda Beat Street',
         'isOnline': false,
       },
@@ -310,7 +310,7 @@ class SeedService {
 
       // ── 7. Dokumen (KTP untuk Driver Umum, KTM untuk Mahasiswa) ─────────────
       if (u['role'] == 'driver_umum') {
-        final nik = u['nik'] ?? '3276012345670001';
+        final nik = u['nik'] ?? '1271012345670001';
         // Subkoleksi documents/ktp
         await _db
             .collection('users')
@@ -351,8 +351,8 @@ class SeedService {
             'passengerName': 'Andi Pratama',
             'passengerPhone': '08123456789',
             'passengerRole': 'mahasiswa',
-            'pickupAddress': 'Stasiun Depok Baru',
-            'dropoffAddress': 'Gedung C - Zona B (Fakultas Teknik)',
+            'pickupAddress': 'Stasiun Medan',
+            'dropoffAddress': 'Gedung C - Zona B (Fakultas Teknik USU)',
             'destinationZoneId': 'Zona B',
             'fareAmount': 15000,
             'commissionAmount': 2250,
