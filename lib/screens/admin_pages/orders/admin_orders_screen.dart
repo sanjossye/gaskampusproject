@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const Color kPrimary = Color(0xFFC0F637);
+const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
 const Color kBgLight = Color(0xFFF7F8F5);
 
@@ -244,21 +244,43 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Monitoring Pesanan', style: TextStyle(color: textColorPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text('Pantau perjalanan aktif dan kendala rute kampus', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Monitoring Pesanan',
+                          style: TextStyle(
+                            color: textColorPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Pantau perjalanan aktif & kendala kampus',
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text('${_orders.length} Order Hari Ini', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11)),
+                    child: Text(
+                      '${_orders.length} Order',
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -364,22 +386,31 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(order['serviceIcon'] as IconData, size: 18, color: kPrimary),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        order['id'],
-                                        style: TextStyle(
-                                          color: textColorPrimary,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Icon(order['serviceIcon'] as IconData, size: 18, color: kPrimary),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          order['id'],
+                                          style: TextStyle(
+                                            color: textColorPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text('• ${order['time']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                                    ],
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            '• ${order['time']}',
+                                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
+                                  const SizedBox(width: 8),
                                   _buildOrderStatusBadge(order['status'], order['statusLabel']),
                                 ],
                               ),

@@ -5,8 +5,9 @@ import 'verification/driver_verification_screen.dart';
 import 'drivers/admin_drivers_screen.dart';
 import 'orders/admin_orders_screen.dart';
 import 'reports/admin_reports_screen.dart';
+import 'settings/admin_fare_settings_modal.dart';
 
-const Color kPrimary = Color(0xFFC0F637);
+const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
 const Color kBgLight = Color(0xFFF7F8F5);
 
@@ -513,40 +514,50 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            color: kPrimary,
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: NetworkImage(
-                                'https://lh3.googleusercontent.com/aida-public/AB6AXuAPL6NfzMDQDoi0D2I6FMc9wjPwwAvp7VAzLzuDdCe_xUJ-ggxzh1kZ0M2R7ypwt3R-v4daHBrFk-DaHoWUGVUmVW7H8CKIHWGfUq_Non9yUtY9ut6PF0VYBSdFT35h6GtvfXw1bWs4zUeGdtzgXs9HqAPM7qHve5iAXLBx5Is9dgHTMiQM79SKhM3FRnHB1naOZoAuNRHm1V6ljXIhBRvwG7E9M3IbKZhfgnc8MQ6R7TlVtngV7Td7uIr7tPRNcgxUGLWdQZfysmc',
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: kPrimary,
+                              shape: BoxShape.circle,
+                              image: DecorationImage(
+                                image: NetworkImage(
+                                  'https://lh3.googleusercontent.com/aida-public/AB6AXuAPL6NfzMDQDoi0D2I6FMc9wjPwwAvp7VAzLzuDdCe_xUJ-ggxzh1kZ0M2R7ypwt3R-v4daHBrFk-DaHoWUGVUmVW7H8CKIHWGfUq_Non9yUtY9ut6PF0VYBSdFT35h6GtvfXw1bWs4zUeGdtzgXs9HqAPM7qHve5iAXLBx5Is9dgHTMiQM79SKhM3FRnHB1naOZoAuNRHm1V6ljXIhBRvwG7E9M3IbKZhfgnc8MQ6R7TlVtngV7Td7uIr7tPRNcgxUGLWdQZfysmc',
+                                ),
+                                fit: BoxFit.cover,
                               ),
-                              fit: BoxFit.cover,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('ADMINISTRATOR', style: _body(textColorSecondary, 10, FontWeight.bold, ls: 1)),
-                            Text('Dashboard Kampus', style: _body(textColorPrimary, 18, FontWeight.bold)),
-                          ],
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('ADMINISTRATOR', style: _body(textColorSecondary, 10, FontWeight.bold, ls: 1)),
+                                Text(
+                                  'Dashboard Kampus',
+                                  style: _body(textColorPrimary, 16, FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         // Notification Button
                         GestureDetector(
                           onTap: () => setState(() => _currentIndex = 4),
                           child: Container(
-                            width: 42,
-                            height: 42,
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: cardBg,
                               shape: BoxShape.circle,
@@ -555,13 +566,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                Icon(Icons.notifications_outlined, color: textColorPrimary, size: 20),
+                                Icon(Icons.notifications_outlined, color: textColorPrimary, size: 19),
                                 Positioned(
-                                  top: 9,
-                                  right: 9,
+                                  top: 8,
+                                  right: 8,
                                   child: Container(
-                                    width: 8,
-                                    height: 8,
+                                    width: 7,
+                                    height: 7,
                                     decoration: BoxDecoration(
                                       color: Colors.red,
                                       shape: BoxShape.circle,
@@ -578,8 +589,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         GestureDetector(
                           onTap: _handleLogout,
                           child: Container(
-                            width: 42,
-                            height: 42,
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: Colors.red.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
@@ -918,6 +929,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           border: borderColor,
                           onProcess: () {
                             setState(() => _currentIndex = 3);
+                          },
+                        ),
+                        _buildActionItem(
+                          title: 'Kelola Tarif Ojek (10 Tier)',
+                          sub: 'Atur batas harga km untuk Mahasiswa & Driver',
+                          icon: Icons.price_change_rounded,
+                          color: Colors.green,
+                          bg: cardBg,
+                          text: textColorPrimary,
+                          textSec: textColorSecondary,
+                          border: borderColor,
+                          onProcess: () {
+                            AdminFareSettingsModal.show(context);
                           },
                         ),
                       ],

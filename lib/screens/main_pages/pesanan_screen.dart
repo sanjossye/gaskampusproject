@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
+import '../../services/fare_pricing_service.dart';
 import 'service_order_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
@@ -366,7 +367,12 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         ? 'Gedung Biro Rektor USU'
         : _destinationController.text.trim();
     final svcLabel = _services[_selectedService]['label'] as String;
-    final fareStr = _services[_selectedService]['fare'] as String;
+
+    // Hitung tarif resmi dinamis berdasarkan jarak rute jalan raya (10 Tier GasKampus)
+    final int dynamicFare = _selectedService == 1
+        ? FarePricingService.calculateCarFare(_routeDistanceKm)
+        : FarePricingService.calculateMotorFare(_routeDistanceKm);
+    final String fareStr = FarePricingService.formatRupiah(dynamicFare);
     final now = DateTime.now();
     String docId = 'ride_${now.millisecondsSinceEpoch}';
 
@@ -384,7 +390,8 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
               'originAddress': pickup,
               'destinationAddress': dest,
               'note': '',
-              'fareAmount': _selectedService == 1 ? 20000 : 10000,
+              'fareAmount': dynamicFare,
+              'distanceKm': _routeDistanceKm,
               'paymentMethod': 'wallet',
               'createdAt': now.toIso8601String(),
             })
@@ -802,7 +809,6 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         ? const Color(0xFF2A3518)
         : const Color(0xFFE2E8F0);
 
-    final svc = _services[_selectedService];
     final pm = _paymentMethods[_selectedPayment];
     final pmColor = pm['color'] as Color;
 
@@ -1244,52 +1250,77 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 const SizedBox(height: 16),
 
                 // ── Fare + Time strip ──
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.payments_outlined, color: kPrimary, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        svc['fare'] as String,
-                        style: _body(textColorPrimary, 16, FontWeight.bold),
+                Builder(
+                  builder: (context) {
+                    final int dynamicFare = _selectedService == 1
+                        ? FarePricingService.calculateCarFare(_routeDistanceKm)
+                        : FarePricingService.calculateMotorFare(_routeDistanceKm);
+                    final String displayFare = FarePricingService.formatRupiah(dynamicFare);
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
                       ),
-                      Container(
-                        width: 1,
-                        height: 18,
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        color: borderColor,
+                      child: Row(
+                        children: [
+                          Icon(Icons.payments_outlined, color: kPrimary, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            displayFare,
+                            style: _body(textColorPrimary, 16, FontWeight.bold),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 18,
+                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                            color: borderColor,
+                          ),
+                          Icon(
+                            Icons.route_rounded,
+                            color: textColorSecondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${_routeDistanceKm.toStringAsFixed(1)} km',
+                            style: _body(textColorSecondary, 13, FontWeight.w500),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 18,
+                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                            color: borderColor,
+                          ),
+                          Icon(
+                            Icons.schedule_rounded,
+                            color: textColorSecondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$_routeEtaMinutes mnt',
+                            style: _body(textColorSecondary, 13, FontWeight.w500),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.local_fire_department_rounded,
+                            color: Color(0xFFFF6B35),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Hemat!',
+                            style: _body(
+                              const Color(0xFFFF6B35),
+                              12,
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      Icon(
-                        Icons.schedule_rounded,
-                        color: textColorSecondary,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${svc['time']} mnt',
-                        style: _body(textColorSecondary, 13, FontWeight.w500),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.local_fire_department_rounded,
-                        color: Color(0xFFFF6B35),
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Cepat!',
-                        style: _body(
-                          const Color(0xFFFF6B35),
-                          12,
-                          FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
 
