@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../../services/map_route_service.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBgDark = Color(0xFF1D2210);
@@ -77,6 +80,36 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
 
   int _selectedPayment = 0;
   bool _loading = false;
+
+  final MapController _mapController = MapController();
+  LatLng _studentPos =
+      MapRouteService.lastKnownDriverGps?.position ??
+      MapRouteService.defaultKampusCenter;
+  String _detectedStreet = 'Kampus USU Medan';
+
+  @override
+  void initState() {
+    super.initState();
+    _initGps();
+  }
+
+  Future<void> _initGps() async {
+    final gps = await MapRouteService.getCurrentDriverPosition(
+      campusFallback: MapRouteService.defaultKampusCenter,
+    );
+    if (!mounted) return;
+    setState(() => _studentPos = gps.position);
+    final street = await MapRouteService.reverseGeocodePosition(gps.position);
+    if (!mounted) return;
+    setState(() {
+      _detectedStreet = street;
+      if (_isMakan && _destinationController.text.trim().isEmpty) {
+        _destinationController.text = street;
+      } else if (!_isMakan && _originController.text.trim().isEmpty) {
+        _originController.text = street;
+      }
+    });
+  }
 
   bool get _isMakan => widget.serviceType == 'makan';
 
@@ -299,6 +332,67 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Peta Lokasi Live Kampus USU Medan
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox(
+                height: 165,
+                width: double.infinity,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GasKampusLiveMap(
+                        mapController: _mapController,
+                        mapStyle: GasMapStyle.street,
+                        initialCenter: _studentPos,
+                        initialZoom: 15.0,
+                        markers: [
+                          MapRouteService.buildPlacePinMarker(
+                            point: _studentPos,
+                            label: _detectedStreet,
+                            color: accent,
+                            icon: _isMakan
+                                ? Icons.restaurant_rounded
+                                : Icons.shopping_bag_rounded,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kBgDark.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.gps_fixed, color: kPrimary, size: 12),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Titik GPS: $_detectedStreet',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),

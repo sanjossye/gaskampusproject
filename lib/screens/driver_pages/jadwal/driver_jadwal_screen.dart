@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../main_pages/jadwal_kuliah_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 
@@ -364,6 +365,19 @@ class _DriverJadwalScreenState extends State<DriverJadwalScreen> {
                           ),
                         ],
                       ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    MahasiswaScheduleSection(
+                      onOpenFullSchedule: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const JadwalKuliahScreen(),
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 24),

@@ -1,13 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../../services/map_route_service.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart' as pesanan;
 import 'profile_screen.dart';
 import 'topup_modal.dart';
 import 'nearby_drivers_modal.dart';
 import 'service_order_screen.dart';
+import 'jadwal_kuliah_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const Color kPrimary = Color(0xFFC0F637);
@@ -55,12 +60,30 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Sinyal untuk membuka Halaman Pesanan (Antar) dari Beranda.
   int _orderSignal = 0;
+
+  /// Tujuan yang dipilih otomatis (mis. dari Jadwal Kuliah atau Radar).
+  String? _presetDestination;
+
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
 
   String _userName = 'Mahasiswa';
+  String _userFaculty = 'Kampus USU Medan';
   int _walletBalance = 50000;
   int _coinBalance = 0;
+
+  // Live Map & GPS State untuk Mahasiswa
+  final MapController _homeMapController = MapController();
+  bool _isHomeMapReady = false;
+  GasMapStyle _mapStyle = GasMapStyle.street;
+  LatLng _studentGps =
+      MapRouteService.lastKnownDriverGps?.position ??
+      MapRouteService.defaultKampusCenter;
+  String _studentAddress = 'Mendeteksi lokasi perangkat di Medan...';
+  bool _isRealGps =
+      MapRouteService.lastKnownDriverGps?.isRealDeviceGps ?? false;
+  DateTime _lastGeocodeTime = DateTime.fromMillisecondsSinceEpoch(0);
+  StreamSubscription<DriverGpsResult>? _gpsStreamSub;
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -85,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen>
   void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Ambil profil user dari users/{uid}
       FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -93,17 +115,21 @@ class _HomeScreenState extends State<HomeScreen>
           .listen((doc) {
             if (doc.exists && mounted) {
               final data = doc.data();
-              if (data != null &&
-                  data['name'] != null &&
-                  (data['name'] as String).isNotEmpty) {
+              if (data != null) {
                 setState(() {
-                  _userName = data['name'];
+                  if (data['name'] != null &&
+                      (data['name'] as String).isNotEmpty) {
+                    _userName = data['name'] as String;
+                  }
+                  if (data['facultas'] != null &&
+                      (data['facultas'] as String).isNotEmpty) {
+                    _userFaculty = data['facultas'] as String;
+                  }
                 });
               }
             }
           });
 
-      // Ambil saldo dan koin dari wallets/{uid}
       FirebaseFirestore.instance
           .collection('wallets')
           .doc(user.uid)
@@ -126,10 +152,75 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  Future<void> _initStudentGps() async {
+    final gps = await MapRouteService.getCurrentDriverPosition(
+      campusFallback: MapRouteService.defaultKampusCenter,
+    );
+    if (!mounted) return;
+    setState(() {
+      _studentGps = gps.position;
+      _isRealGps = gps.isRealDeviceGps;
+    });
+    if (_isHomeMapReady) {
+      _homeMapController.move(_studentGps, 14.8);
+    }
+    await _refreshStudentAddress(gps.position);
+
+    _gpsStreamSub?.cancel();
+    _gpsStreamSub = MapRouteService.watchDriverPosition().listen((liveGps) {
+      if (!mounted) return;
+      final moved = MapRouteService.distanceInMeters(
+        _studentGps,
+        liveGps.position,
+      );
+      setState(() {
+        _studentGps = liveGps.position;
+        _isRealGps = true;
+      });
+      if (moved > 35 ||
+          DateTime.now().difference(_lastGeocodeTime).inSeconds > 20) {
+        _refreshStudentAddress(liveGps.position);
+      }
+    });
+  }
+
+  Future<void> _refreshStudentAddress(LatLng pos) async {
+    _lastGeocodeTime = DateTime.now();
+    final addr = await MapRouteService.reverseGeocodePosition(pos);
+    if (!mounted) return;
+    setState(() => _studentAddress = addr);
+  }
+
+  void _cycleMapStyle() {
+    const styles = GasMapStyle.values;
+    final nextIdx = (styles.indexOf(_mapStyle) + 1) % styles.length;
+    setState(() => _mapStyle = styles[nextIdx]);
+  }
+
+  void _openOrderWithDestination(String destination) {
+    setState(() {
+      _presetDestination = destination;
+      _navIndex = 2;
+      _orderSignal++;
+    });
+  }
+
+  void _openJadwalKuliahScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JadwalKuliahScreen(
+          onOrderRideToClass: (dest) => _openOrderWithDestination(dest),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _initStudentGps();
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -140,13 +231,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _gpsStreamSub?.cancel();
+    _homeMapController.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // ── Hapus 'surface' & 'card' yang tidak terpakai ──
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? kBgDark : kBgLight;
     final border = isDark ? kBorderDark : kBorderLight;
@@ -176,6 +268,7 @@ class _HomeScreenState extends State<HomeScreen>
       return pesanan.PesananScreen(
         openHistorySignal: _historySignal,
         openOrderSignal: _orderSignal,
+        initialDestination: _presetDestination,
         onBackToHome: () => setState(() => _navIndex = 0),
       );
     }
@@ -186,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen>
             _navIndex = 1;
           });
         },
+        onOpenJadwalKuliah: _openJadwalKuliahScreen,
       );
     }
 
@@ -193,20 +287,50 @@ class _HomeScreenState extends State<HomeScreen>
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: _buildHeader(tp, ts, isDark)),
+        SliverToBoxAdapter(child: _buildLiveGpsBar(tp, ts, isDark, border)),
         SliverToBoxAdapter(child: _buildWalletCard()),
         SliverToBoxAdapter(child: _buildSearchBar(ts, border, isDark)),
         SliverToBoxAdapter(child: _buildSectionLabel('Layanan', tp, ts)),
         SliverToBoxAdapter(child: _buildServiceGrid(tp, isDark)),
-        SliverToBoxAdapter(child: _buildMapCard()),
+        SliverToBoxAdapter(
+          child: MahasiswaScheduleSection(
+            onOrderRideToClass: _openOrderWithDestination,
+            onOpenFullSchedule: _openJadwalKuliahScreen,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: _buildSectionLabel(
+            'Peta Live & Radar Kampus USU',
+            tp,
+            ts,
+            action: 'Buka Radar',
+            onActionTap: () => showNearbyDriversModal(
+              context,
+              onOrderWithDriver: (drv) {
+                _openOrderWithDestination(
+                  (drv['locationName'] as String?) ?? 'Gedung Biro Rektor USU',
+                );
+              },
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildMapCard(tp, ts, isDark, border)),
         SliverToBoxAdapter(child: _buildSectionLabel('Promo Untukmu', tp, ts)),
         SliverToBoxAdapter(child: _buildPromoBanner()),
         SliverToBoxAdapter(
           child: _buildSectionLabel(
-            'Driver Aktif',
+            'Driver Aktif di Sekitar Kamu',
             tp,
             ts,
-            action: 'Lihat Semua',
-            onActionTap: () => showNearbyDriversModal(context),
+            action: 'Lihat Peta',
+            onActionTap: () => showNearbyDriversModal(
+              context,
+              onOrderWithDriver: (drv) {
+                _openOrderWithDestination(
+                  (drv['locationName'] as String?) ?? 'Gedung Biro Rektor USU',
+                );
+              },
+            ),
           ),
         ),
         SliverToBoxAdapter(child: _buildDriversRow(tp, ts, isDark)),
@@ -231,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen>
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.person_outline_rounded,
+              Icons.school_rounded,
               color: kTextOnPrimary,
               size: 22,
             ),
@@ -242,14 +366,28 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _getGreeting(),
-                  style: _body(ts, 12, FontWeight.w500, ls: 0.2),
+                  '${_getGreeting()} • $_userFaculty',
+                  style: _body(ts, 11.5, FontWeight.w500, ls: 0.2),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(_userName, style: _body(tp, 16, FontWeight.bold)),
               ],
             ),
           ),
+          GestureDetector(
+            onTap: _openJadwalKuliahScreen,
+            child: Tooltip(
+              message: 'Jadwal Kuliah Saya',
+              child: _buildIconBtn(
+                Icons.calendar_month_rounded,
+                kPrimaryDeep,
+                isDark,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -290,6 +428,80 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 1b. Live Device GPS Bar (Setara Sistem Maps Driver Umum)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildLiveGpsBar(Color tp, Color ts, bool isDark, Color border) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? kCardDark : kCardLight,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _isRealGps ? Icons.gps_fixed : Icons.location_searching,
+              color: _isRealGps ? Colors.green : Colors.orange,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _studentAddress,
+                    style: _body(tp, 12, FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${_studentGps.latitude.toStringAsFixed(4)}, ${_studentGps.longitude.toStringAsFixed(4)} · Medan',
+                    style: _body(ts, 10, FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: _isRealGps
+                    ? Colors.green.withValues(alpha: 0.14)
+                    : kPrimary.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _isRealGps ? 'GPS ASLI' : 'LIVE MEDAN',
+                style: TextStyle(
+                  color: _isRealGps ? Colors.green[700] : kTextOnPrimary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: _initStudentGps,
+              borderRadius: BorderRadius.circular(12),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(
+                  Icons.refresh_rounded,
+                  color: kPrimaryDeep,
+                  size: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 2. Wallet Card
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildWalletCard() {
@@ -325,7 +537,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'GoPay Campus',
+                      'GasPay Campus',
                       style: _body(
                         kTextOnPrimary.withOpacity(0.65),
                         11,
@@ -433,6 +645,7 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: GestureDetector(
         onTap: () => setState(() {
+          _presetDestination = null;
           _navIndex = 2;
           _orderSignal++;
         }),
@@ -450,7 +663,7 @@ class _HomeScreenState extends State<HomeScreen>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Mau ke mana hari ini?',
+                  'Mau ke fakultas atau mana hari ini?',
                   style: _body(ts, 13, FontWeight.w400),
                 ),
               ),
@@ -510,7 +723,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 5. Service Grid  –– responsif dengan LayoutBuilder
+  // 5. Service Grid  –– Antar, Makan, Titip, Jadwal Kuliah
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildServiceGrid(Color tp, bool isDark) {
     final services = [
@@ -520,6 +733,7 @@ class _HomeScreenState extends State<HomeScreen>
         kPrimary,
         kTextOnPrimary,
         onTap: () => setState(() {
+          _presetDestination = null;
           _navIndex = 2;
           _orderSignal++;
         }),
@@ -538,6 +752,13 @@ class _HomeScreenState extends State<HomeScreen>
         Colors.white,
         onTap: () => _openServiceOrder('titip'),
       ),
+      _ServiceItem(
+        'Jadwal',
+        Icons.calendar_month_rounded,
+        const Color(0xFFA78BFA),
+        Colors.white,
+        onTap: _openJadwalKuliahScreen,
+      ),
     ];
 
     return Padding(
@@ -545,7 +766,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final itemW =
-              (constraints.maxWidth - 16 * (services.length - 1)) /
+              (constraints.maxWidth - 12 * (services.length - 1)) /
               services.length;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -625,122 +846,271 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 6. Map Card
+  // 6. Interactive Live Map Card (Google Maps Tiles + Zona Kampus + Driver Pin)
   // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildMapCard() {
+  Widget _buildMapCard(Color tp, Color ts, bool isDark, Color border) {
+    final zones = MapRouteService.getCampusZones();
+    final sampleDrivers = const [
+      {'name': 'Budi S.', 'pos': LatLng(3.5612, 98.6540)},
+      {'name': 'Siti A.', 'pos': LatLng(3.5655, 98.6565)},
+      {'name': 'Agus P.', 'pos': LatLng(3.5635, 98.6580)},
+    ];
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      height: 148,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A2E0A), Color(0xFF0D1A05)],
-        ),
+        color: isDark ? kCardDark : kCardLight,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: kPrimary.withOpacity(0.12),
+            color: kPrimary.withOpacity(0.10),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => showNearbyDriversModal(context),
-          splashColor: kPrimary.withOpacity(0.15),
-          highlightColor: kPrimary.withOpacity(0.08),
-          child: Stack(
-            children: [
-              Positioned.fill(child: CustomPaint(painter: _DotGridPainter())),
-              // Badge Top Right
-              Positioned(
-                top: 12,
-                right: 14,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 210,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GasKampusLiveMap(
+                    mapController: _homeMapController,
+                    mapStyle: _mapStyle,
+                    initialCenter: _studentGps,
+                    initialZoom: 14.7,
+                    onMapReady: () => _isHomeMapReady = true,
+                    markers: [
+                      MapRouteService.buildPlacePinMarker(
+                        point: _studentGps,
+                        label: 'Lokasi Kamu',
+                        color: const Color(0xFF16A34A),
+                        icon: Icons.person_pin_circle_rounded,
+                      ),
+                      ...sampleDrivers.map((d) {
+                        return Marker(
+                          point: d['pos'] as LatLng,
+                          width: 36,
+                          height: 36,
+                          child: GestureDetector(
+                            onTap: () => showNearbyDriversModal(
+                              context,
+                              onOrderWithDriver: (drv) {
+                                _openOrderWithDestination(
+                                  (drv['locationName'] as String?) ??
+                                      'Gedung Biro Rektor USU',
+                                );
+                              },
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1D2210),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: kPrimary, width: 2),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black38,
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.two_wheeler_rounded,
+                                color: kPrimary,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                      color: kPrimary.withOpacity(0.5),
-                      width: 1,
+                ),
+
+                // Badge Kiri Atas
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1D2210).withValues(alpha: 0.88),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: kPrimary.withValues(alpha: 0.6)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: kPrimary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Radar Kampus Aktif · ${zones.length} Zona USU',
+                          style: _body(Colors.white, 10.5, FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                ),
+
+                // Tombol Kontrol Peta Kanan Atas
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Column(
                     children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: kPrimary,
-                          shape: BoxShape.circle,
-                        ),
+                      _mapControlCircle(
+                        icon: _mapStyle.icon,
+                        tooltip: 'Tema Peta: ${_mapStyle.label}',
+                        onTap: _cycleMapStyle,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Radar Aktif',
-                        style: _body(kPrimary, 11, FontWeight.bold),
+                      const SizedBox(height: 6),
+                      _mapControlCircle(
+                        icon: Icons.my_location_rounded,
+                        tooltip: 'Fokus ke Lokasi Kamu',
+                        onTap: () {
+                          if (_isHomeMapReady) {
+                            _homeMapController.move(_studentGps, 15.3);
+                          }
+                        },
                       ),
                     ],
                   ),
                 ),
-              ),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: kPrimary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: kPrimary.withOpacity(0.4),
-                            blurRadius: 14,
-                            spreadRadius: 2,
+              ],
+            ),
+          ),
+
+          // Footer Bar Peta Kampus
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: zones.map((z) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: InkWell(
+                            onTap: () {
+                              if (_isHomeMapReady) {
+                                _homeMapController.move(z.center, 15.6);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(99),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: z.color.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(99),
+                                border: Border.all(
+                                  color: z.color.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Text(
+                                z.id,
+                                style: TextStyle(
+                                  color: tp,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.radar_rounded,
-                        color: kTextOnPrimary,
-                        size: 24,
-                      ),
+                        );
+                      }).toList(),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Lihat Driver Terdekat',
-                      style: _body(Colors.white, 15, FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => showNearbyDriversModal(
+                    context,
+                    onOrderWithDriver: (drv) {
+                      _openOrderWithDestination(
+                        (drv['locationName'] as String?) ??
+                            'Gedung Biro Rektor USU',
+                      );
+                    },
+                  ),
+                  borderRadius: BorderRadius.circular(99),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
+                    decoration: BoxDecoration(
+                      color: kPrimary,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Ketuk untuk memindai radar sekitar',
-                          style: _body(Colors.white70, 12, FontWeight.w400),
+                      children: const [
+                        Icon(
+                          Icons.radar_rounded,
+                          size: 14,
+                          color: kTextOnPrimary,
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 10,
-                          color: kPrimary,
+                        SizedBox(width: 4),
+                        Text(
+                          'Scan Driver',
+                          style: TextStyle(
+                            color: kTextOnPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mapControlCircle({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.94),
+        shape: const CircleBorder(),
+        elevation: 3,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 34,
+            height: 34,
+            child: Icon(icon, size: 17, color: Colors.black87),
           ),
         ),
       ),
@@ -795,24 +1165,26 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: kTextOnPrimary,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    'Klaim Sekarang',
-                    style: _body(kPrimary, 12, FontWeight.bold),
+                GestureDetector(
+                  onTap: () => setState(() => _navIndex = 1),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kTextOnPrimary,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      'Klaim Sekarang',
+                      style: _body(kPrimary, 12, FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          // Dekorasi angka — dibatasi SizedBox agar tidak overflow
           SizedBox(
             width: 70,
             child: Text(
@@ -831,7 +1203,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 8. Driver Row
+  // 8. Driver Row (Terintegrasi Estimasi Jarak GPS Real-Time)
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildDriversRow(Color tp, Color ts, bool isDark) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -841,20 +1213,18 @@ class _HomeScreenState extends State<HomeScreen>
           .where('isOnline', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
-        // Fallback jika Firestore belum diisi / offline: hanya tampilkan driver yang online
-        final defaultOnlineDrivers = [
-          {'name': 'Budi S.', 'rating': '4.9', 'dist': '250 m'},
-          {'name': 'Siti A.', 'rating': '5.0', 'dist': '450 m'},
-          {'name': 'Agus P.', 'rating': '4.7', 'dist': '750 m'},
+        final landmarkPool = [
+          'Fakultas Teknik USU',
+          'Biro Rektor USU',
+          'Perpustakaan Pusat USU',
+          'Pintu 1 USU',
+          'Vokasi USU',
         ];
 
         List<Map<String, String>> drivers = [];
 
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          // Estimasi jarak terdekat untuk driver online (karena belum integrasi peta)
-          final distancePool = ['250 m', '450 m', '750 m', '900 m', '1.2 km'];
           int idx = 0;
-
           drivers = snapshot.data!.docs.map((doc) {
             final data = doc.data();
             final fullName = (data['name'] as String? ?? 'Driver').trim();
@@ -863,33 +1233,44 @@ class _HomeScreenState extends State<HomeScreen>
                 ? '${parts[0]} ${parts[1][0]}.'
                 : parts[0];
             final ratingVal = (data['rating'] as num?)?.toDouble() ?? 5.0;
-            final dist = idx < distancePool.length
-                ? distancePool[idx]
-                : '${(idx + 1) * 300} m';
+            final landmark = landmarkPool[idx % landmarkPool.length];
+            final metrics = MapRouteService.estimateMetricsFromDevice(
+              _studentGps,
+              landmark,
+            );
+            final km = (metrics['distanceKm'] as double).toStringAsFixed(1);
+            final eta = metrics['etaMinutes'] as int;
             idx++;
 
             return {
               'name': shortName,
               'rating': ratingVal.toStringAsFixed(1),
-              'dist': dist,
+              'dist': '$km km (~$eta mnt)',
+              'landmark': landmark,
             };
           }).toList();
         } else {
-          drivers = defaultOnlineDrivers;
-        }
-
-        if (drivers.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Text(
-              'Saat ini belum ada driver yang online di sekitar kampus.',
-              style: _body(ts, 12, FontWeight.w500),
-            ),
-          );
+          drivers = List.generate(3, (i) {
+            final names = ['Budi S.', 'Siti A.', 'Agus P.'];
+            final ratings = ['4.9', '5.0', '4.8'];
+            final landmark = landmarkPool[i % landmarkPool.length];
+            final metrics = MapRouteService.estimateMetricsFromDevice(
+              _studentGps,
+              landmark,
+            );
+            final km = (metrics['distanceKm'] as double).toStringAsFixed(1);
+            final eta = metrics['etaMinutes'] as int;
+            return {
+              'name': names[i],
+              'rating': ratings[i],
+              'dist': '$km km (~$eta mnt)',
+              'landmark': landmark,
+            };
+          });
         }
 
         return SizedBox(
-          height: 136,
+          height: 140,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -897,83 +1278,92 @@ class _HomeScreenState extends State<HomeScreen>
             itemCount: drivers.length,
             itemBuilder: (ctx, i) {
               final d = drivers[i];
-              return Container(
-                width: 120,
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark ? kCardDark : kCardLight,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isDark ? kBorderDark : kBorderLight,
+              return GestureDetector(
+                onTap: () => _openOrderWithDestination(d['landmark']!),
+                child: Container(
+                  width: 128,
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? kCardDark : kCardLight,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isDark ? kBorderDark : kBorderLight,
+                    ),
                   ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? kBorderDark
-                                : const Color(0xFFEDF2E5),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: isDark ? Colors.white38 : Colors.black26,
-                            size: 22,
-                          ),
-                        ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 12,
-                            height: 12,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2ED573),
+                              color: isDark
+                                  ? kBorderDark
+                                  : const Color(0xFFEDF2E5),
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isDark ? kCardDark : kCardLight,
-                                width: 2,
+                            ),
+                            child: Icon(
+                              Icons.two_wheeler_rounded,
+                              color: isDark ? kPrimary : kPrimaryDeep,
+                              size: 22,
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2ED573),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? kCardDark : kCardLight,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      d['name']!,
-                      style: _body(tp, 12, FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.star_rounded, size: 12, color: kPrimaryDeep),
-                        const SizedBox(width: 3),
-                        Text(
-                          d['rating']!,
-                          style: _body(ts, 11, FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      d['dist']!,
-                      style: _body(ts, 11, FontWeight.w400),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        d['name']!,
+                        style: _body(tp, 12, FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 12,
+                            color: kPrimaryDeep,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            d['rating']!,
+                            style: _body(ts, 11, FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        d['dist']!,
+                        style: _body(ts, 10.5, FontWeight.w500),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -984,7 +1374,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Bottom Nav  –– LayoutBuilder: label hanya muncul jika layar ≥ 360px
+  // Bottom Nav
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildBottomNav(bool isDark) {
     final bg = isDark ? kSurfaceDark : kCardLight;
@@ -1087,42 +1477,4 @@ class _NavItem {
   final IconData inactiveIcon;
   final String label;
   const _NavItem(this.activeIcon, this.inactiveIcon, this.label);
-}
-
-// ── Dot Grid Painter (map texture) ───────────────────────────────────────────
-class _DotGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final dot = Paint()
-      ..color = Colors.white.withOpacity(0.06)
-      ..strokeCap = StrokeCap.round;
-    const step = 22.0;
-    for (double x = 0; x < size.width; x += step) {
-      for (double y = 0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 1.5, dot);
-      }
-    }
-    final road = Paint()
-      ..color = Colors.white.withOpacity(0.05)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(
-      Offset(size.width * 0.2, 0),
-      Offset(size.width * 0.35, size.height),
-      road,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.6, 0),
-      Offset(size.width * 0.75, size.height),
-      road,
-    );
-    canvas.drawLine(
-      Offset(0, size.height * 0.4),
-      Offset(size.width, size.height * 0.55),
-      road,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }

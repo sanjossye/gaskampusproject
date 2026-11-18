@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/auth_services.dart';
+import 'main_pages/jadwal_kuliah_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -553,13 +554,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final urlField = _isDriverUmum ? 'ktpUrl' : 'ktmUrl';
       final storageField = _isDriverUmum ? 'ktpStorage' : 'ktmStorage';
 
-      // 2. Simpan jadwal kuliah Senin–Jumat ke users/{uid}/schedules (untuk Mahasiswa & Driver Mahasiswa)
+      // 2. Simpan jadwal kuliah Senin–Jumat ke StudentScheduleStore & users/{uid}/schedules
       if (_isStudentRole) {
-        final batch = FirebaseFirestore.instance.batch();
-        batch.update(userRef, {'hasSchedule': true});
+        final localScheduleItems = <CourseScheduleItem>[];
+        final rawScheduleMaps = <Map<String, dynamic>>[];
+        int idxCounter = 0;
         _schedules.forEach((day, entries) {
           for (final entry in entries) {
-            batch.set(userRef.collection('schedules').doc(), {
+            idxCounter++;
+            localScheduleItems.add(
+              CourseScheduleItem(
+                id: 'reg_${DateTime.now().millisecondsSinceEpoch}_$idxCounter',
+                courseName: entry.courseName,
+                room: entry.room,
+                dayOfWeek: day,
+                startTime: entry.startTime,
+                endTime: entry.endTime,
+              ),
+            );
+            rawScheduleMaps.add({
               'userId': user.uid,
               'courseName': entry.courseName,
               'courseType': 'regular',
@@ -572,7 +585,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             });
           }
         });
-        await batch.commit().timeout(const Duration(seconds: 30));
+        StudentScheduleStore.setSchedules(localScheduleItems);
+
+        try {
+          final batch = FirebaseFirestore.instance.batch();
+          batch.update(userRef, {
+            'hasSchedule': true,
+            'jadwalKuliah': rawScheduleMaps,
+          });
+          for (final sMap in rawScheduleMaps) {
+            batch.set(userRef.collection('schedules').doc(), sMap);
+          }
+          await batch.commit().timeout(const Duration(seconds: 30));
+        } catch (_) {}
       }
 
       // 3. Upload berkas identitas (KTM / KTP) ke Firebase Storage atau fallback ke Firestore

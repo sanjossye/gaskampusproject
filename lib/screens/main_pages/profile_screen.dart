@@ -1,8 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../login_screen.dart';
 import 'topup_modal.dart';
 import 'favorite_drivers_screen.dart';
 import 'settings_screen.dart';
+import 'jadwal_kuliah_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const Color kPrimary       = Color(0xFFC0F637);
@@ -20,7 +23,12 @@ TextStyle _body(Color c, double sz, FontWeight w, {double? ls, double? h}) =>
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onNavigateToPromo;
-  const ProfileScreen({super.key, this.onNavigateToPromo});
+  final VoidCallback? onOpenJadwalKuliah;
+  const ProfileScreen({
+    super.key,
+    this.onNavigateToPromo,
+    this.onOpenJadwalKuliah,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -29,6 +37,60 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String _profileImage =
       'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
+  String _studentName = 'Ahmad Zaki';
+  String _studentNim = '140610240001';
+  String _studentFaculty = 'USU Medan';
+  int _walletBalance = 75000;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudentProfile();
+  }
+
+  void _loadStudentProfile() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((doc) {
+          if (doc.exists && mounted) {
+            final data = doc.data() ?? {};
+            setState(() {
+              if ((data['name'] ?? '').toString().trim().isNotEmpty) {
+                _studentName = data['name'].toString().trim();
+              }
+              if ((data['nim'] ?? '').toString().trim().isNotEmpty) {
+                _studentNim = data['nim'].toString().trim();
+              }
+              if ((data['facultas'] ?? '').toString().trim().isNotEmpty) {
+                _studentFaculty = data['facultas'].toString().trim();
+              }
+            });
+          }
+        });
+    FirebaseFirestore.instance
+        .collection('wallets')
+        .doc(user.uid)
+        .snapshots()
+        .listen((doc) {
+          if (doc.exists && mounted) {
+            final data = doc.data() ?? {};
+            if (data['balance'] is num) {
+              setState(() => _walletBalance = (data['balance'] as num).toInt());
+            }
+          }
+        });
+  }
+
+  String _formatRp(int val) {
+    return val.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
 
   final List<Map<String, String>> _avatarPresets = [
     {
@@ -570,7 +632,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 16),
 
           // Name & NIM
-          Text('Ahmad Zaki', style: _body(tp, 24, FontWeight.bold, ls: -0.5)),
+          Text(_studentName, style: _body(tp, 24, FontWeight.bold, ls: -0.5)),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -581,11 +643,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: kPrimary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text('MAHASISWA',
+                child: Text('MAHASISWA • $_studentFaculty',
                     style: _body(kPrimaryDeep, 10, FontWeight.bold, ls: 0.5)),
               ),
               const SizedBox(width: 8),
-              Text('NIM 12345678', style: _body(ts, 15, FontWeight.w500)),
+              Text('NIM $_studentNim', style: _body(ts, 14, FontWeight.w500)),
             ],
           ),
         ],
@@ -644,9 +706,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Color hover, Color border) {
     final menus = [
       {
+        'icon': Icons.calendar_month_rounded,
+        'title': 'Jadwal Kuliah Saya (Senin – Jumat)',
+        'subtitle': 'Lihat & kelola jadwal perkuliahan yang didaftarkan',
+        'badge': null,
+        'onTap': () {
+          if (widget.onOpenJadwalKuliah != null) {
+            widget.onOpenJadwalKuliah!();
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const JadwalKuliahScreen()),
+            );
+          }
+        },
+      },
+      {
         'icon': Icons.account_balance_wallet_rounded,
         'title': 'Dompet & Top Up',
-        'subtitle': 'Saldo: Rp 75.000',
+        'subtitle': 'Saldo: Rp ${_formatRp(_walletBalance)}',
         'badge': null,
         'onTap': () => showTopUpModal(context),
       },
