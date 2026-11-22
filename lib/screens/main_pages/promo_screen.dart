@@ -697,7 +697,7 @@ class _PromoScreenState extends State<PromoScreen> {
     final historyList = [
       {
         'title': 'Diskon 40% Antar Pagi Kuliah',
-        'cat': 'Goride Kampus',
+        'cat': 'GasRide Kampus',
         'date': 'Kemarin, 08:15 WIB',
         'saved': '-Rp 6.000',
         'status': 'Terpakai',
@@ -724,7 +724,7 @@ class _PromoScreenState extends State<PromoScreen> {
       },
       {
         'title': 'Diskon Belajar Malam Rp5.000',
-        'cat': 'Goride Perpustakaan',
+        'cat': 'GasRide Perpustakaan',
         'date': 'Kedaluwarsa 19 Okt 2026',
         'saved': 'Rp 0',
         'status': 'Kedaluwarsa',

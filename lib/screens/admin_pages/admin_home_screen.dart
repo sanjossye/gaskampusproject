@@ -523,11 +523,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             decoration: const BoxDecoration(
                               color: kPrimary,
                               shape: BoxShape.circle,
-                              image: DecorationImage(
-                                image: NetworkImage(
-                                  'https://lh3.googleusercontent.com/aida-public/AB6AXuAPL6NfzMDQDoi0D2I6FMc9wjPwwAvp7VAzLzuDdCe_xUJ-ggxzh1kZ0M2R7ypwt3R-v4daHBrFk-DaHoWUGVUmVW7H8CKIHWGfUq_Non9yUtY9ut6PF0VYBSdFT35h6GtvfXw1bWs4zUeGdtzgXs9HqAPM7qHve5iAXLBx5Is9dgHTMiQM79SKhM3FRnHB1naOZoAuNRHm1V6ljXIhBRvwG7E9M3IbKZhfgnc8MQ6R7TlVtngV7Td7uIr7tPRNcgxUGLWdQZfysmc',
-                                ),
-                                fit: BoxFit.cover,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.person_rounded,
+                                color: Colors.black87,
+                                size: 26,
                               ),
                             ),
                           ),

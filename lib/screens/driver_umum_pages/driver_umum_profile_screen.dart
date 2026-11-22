@@ -25,9 +25,10 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
   String _nik = '1271012345670001';
   String _vehiclePlate = 'BK 5678 UMM';
   String _vehicleBrand = 'Honda Beat';
+  String _photoUrl = '';
   double _rating = 4.8;
   int _totalTrips = 512;
-  int _walletBalance = 340000;
+  int _walletBalance = 0;
   bool _isVerified = true;
 
   @override
@@ -50,6 +51,7 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
             _name = data['name'] ?? _name;
             _phone = data['phone'] ?? _phone;
             _nik = data['nik'] ?? _nik;
+            _photoUrl = (data['photoUrl'] ?? '').toString().trim();
             _vehiclePlate = data['vehiclePlate'] ?? profile['vehiclePlate'] ?? _vehiclePlate;
             _vehicleBrand = data['vehicleBrand'] ?? profile['vehicleBrand'] ?? _vehicleBrand;
             _rating = (data['rating'] as num?)?.toDouble() ?? (profile['rating'] as num?)?.toDouble() ?? _rating;
@@ -169,17 +171,35 @@ class _DriverUmumProfileScreenState extends State<DriverUmumProfileScreen> {
                                   height: 110,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
+                                    color: kPrimary.withValues(alpha: 0.15),
                                     border: Border.all(
                                       color: isDark ? const Color(0xFF1D2210) : Colors.white,
                                       width: 4,
                                     ),
-                                    image: const DecorationImage(
-                                      image: NetworkImage(
-                                        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=250',
-                                      ),
-                                      fit: BoxFit.cover,
-                                    ),
                                   ),
+                                  child: _photoUrl.isNotEmpty
+                                      ? ClipOval(
+                                          child: Image.network(
+                                            _photoUrl,
+                                            width: 110,
+                                            height: 110,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) => const Center(
+                                              child: Icon(
+                                                Icons.person_rounded,
+                                                size: 58,
+                                                color: kPrimary,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : const Center(
+                                          child: Icon(
+                                            Icons.person_rounded,
+                                            size: 58,
+                                            color: kPrimary,
+                                          ),
+                                        ),
                                 ),
                               ),
                               Positioned(

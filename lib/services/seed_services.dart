@@ -285,7 +285,7 @@ class SeedService {
       }
 
       // ── 6. Wallet ─────────────────────────────────────────────────────────
-      final walletBal = u['walletBalance'] ?? (u['role'] == 'mahasiswa' ? 50000 : 0);
+      final walletBal = u['walletBalance'] ?? 0;
       await _db.collection('wallets').doc(uid).set({
         'userId': uid,
         'balance': walletBal,

@@ -38,10 +38,11 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   String _driverName = 'Agus Prabowo';
   String _vehiclePlate = 'BK 5678 UMM';
   String _vehicleBrand = 'Honda Beat';
+  String _photoUrl = '';
   double _rating = 4.8;
   int _totalTrips = 512;
   int _todayEarnings = 0;
-  int _walletBalance = 340000;
+  int _walletBalance = 0;
   bool _isVerified = true;
   bool _isActive = true;
 
@@ -149,6 +150,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
           final profile = (data['driverProfile'] as Map<String, dynamic>?) ?? {};
           setState(() {
             _driverName = data['name'] ?? _driverName;
+            _photoUrl = (data['photoUrl'] ?? '').toString().trim();
             _vehiclePlate = data['vehiclePlate'] ?? profile['vehiclePlate'] ?? _vehiclePlate;
             _vehicleBrand = data['vehicleBrand'] ?? profile['vehicleBrand'] ?? _vehicleBrand;
             _rating = (data['rating'] as num?)?.toDouble() ?? (profile['rating'] as num?)?.toDouble() ?? _rating;
@@ -644,16 +646,33 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: kPrimary.withValues(alpha: 0.18),
                             shape: BoxShape.circle,
                             border: Border.all(color: kPrimary, width: 2),
-                            image: const DecorationImage(
-                              image: NetworkImage(
-                                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-                              ),
-                              fit: BoxFit.cover,
-                            ),
                           ),
+                          child: _photoUrl.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    _photoUrl,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Center(
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        color: Colors.black87,
+                                        size: 26,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : const Center(
+                                  child: Icon(
+                                    Icons.person_rounded,
+                                    color: Colors.black87,
+                                    size: 26,
+                                  ),
+                                ),
                         ),
                         Positioned(
                           bottom: -2,

@@ -24,6 +24,26 @@ const List<String> kDayNames = [
   'Jumat',
 ];
 
+/// Daftar pilihan Fakultas untuk dropdown yang juga mendukung pencarian/ketik manual.
+const List<String> kFacultyOptions = [
+  'Fakultas Teknik (FT)',
+  'Fakultas Ilmu Komputer dan Teknologi Informasi (Fasilkom-TI)',
+  'Fakultas Ekonomi dan Bisnis (FEB)',
+  'Fakultas Kedokteran (FK)',
+  'Fakultas Hukum (FH)',
+  'Fakultas Pertanian (FP)',
+  'Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)',
+  'Fakultas Matematika dan Ilmu Pengetahuan Alam (FMIPA)',
+  'Fakultas Ilmu Budaya (FIB)',
+  'Fakultas Kesehatan Masyarakat (FKM)',
+  'Fakultas Farmasi (FF)',
+  'Fakultas Psikologi (FPsi)',
+  'Fakultas Keperawatan (FKep)',
+  'Fakultas Kedokteran Gigi (FKG)',
+  'Fakultas Kehutanan',
+  'Fakultas Vokasi',
+];
+
 /// Satu baris jadwal kuliah yang diisi saat pendaftaran.
 class _CourseEntry {
   final String courseName;
@@ -67,6 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _scheduleError;
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _isFacultyDropdownOpen = false;
   String _status = '';
 
   /// Jadwal kuliah per hari (1 = Senin ... 5 = Jumat).
@@ -330,19 +351,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           if (_isStudentRole) ...[
                             const SizedBox(height: 20),
-                            _buildInputField(
-                              label: 'Fakultas',
-                              hint: 'Teknik',
-                              controller: _facultyController,
+                            _buildFacultyField(
                               bg: inputBg,
                               textColor: textPrimary,
+                              textSecondary: textSecondary,
                               border: borderColor,
-                              validator: (value) {
-                                if ((value ?? '').trim().isEmpty) {
-                                  return 'Fakultas wajib diisi.';
-                                }
-                                return null;
-                              },
+                              isDark: isDark,
                             ),
                           ],
 
@@ -914,6 +928,226 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildFacultyField({
+    required Color bg,
+    required Color textColor,
+    required Color textSecondary,
+    required Color border,
+    required bool isDark,
+  }) {
+    final query = _facultyController.text.trim().toLowerCase();
+    final filteredOptions = query.isEmpty
+        ? kFacultyOptions
+        : kFacultyOptions
+            .where((f) => f.toLowerCase().contains(query))
+            .toList();
+    final displayOptions =
+        filteredOptions.isNotEmpty ? filteredOptions : kFacultyOptions;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Fakultas',
+          style: TextStyle(
+            color: textColor.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.only(left: 16, right: 4),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isFacultyDropdownOpen ? kPrimary : border,
+              width: _isFacultyDropdownOpen ? 1.6 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _facultyController,
+                  style: TextStyle(color: textColor, fontSize: 14.5),
+                  onTap: () {
+                    setState(() => _isFacultyDropdownOpen = true);
+                  },
+                  onChanged: (_) {
+                    setState(() => _isFacultyDropdownOpen = true);
+                  },
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'Fakultas wajib dipilih atau diketik.';
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Pilih dari dropdown atau ketik nama fakultas...',
+                    hintStyle: TextStyle(
+                      color: textColor.withOpacity(0.35),
+                      fontSize: 13.5,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              if (_facultyController.text.isNotEmpty)
+                IconButton(
+                  tooltip: 'Hapus pilihan',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    setState(() {
+                      _facultyController.clear();
+                      _isFacultyDropdownOpen = true;
+                    });
+                  },
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    size: 18,
+                    color: textSecondary,
+                  ),
+                ),
+              IconButton(
+                tooltip: _isFacultyDropdownOpen
+                    ? 'Tutup daftar fakultas'
+                    : 'Buka pilihan fakultas',
+                onPressed: () {
+                  setState(
+                    () => _isFacultyDropdownOpen = !_isFacultyDropdownOpen,
+                  );
+                },
+                icon: Icon(
+                  _isFacultyDropdownOpen
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.arrow_drop_down_circle_outlined,
+                  color: _isFacultyDropdownOpen ? kPrimary : textSecondary,
+                  size: 22,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_isFacultyDropdownOpen) ...[
+          const SizedBox(height: 6),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 220),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF151C0A) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: kPrimary.withOpacity(0.6), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        filteredOptions.isEmpty
+                            ? 'Gunakan ketikan manual atau pilih di bawah:'
+                            : 'Pilih Fakultas (${displayOptions.length} pilihan):',
+                        style: TextStyle(
+                          color: textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _isFacultyDropdownOpen = false),
+                        child: const Text(
+                          'Selesai',
+                          style: TextStyle(
+                            color: Color(0xFF6B8E00),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: displayOptions.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: border.withOpacity(0.4),
+                    ),
+                    itemBuilder: (context, index) {
+                      final option = displayOptions[index];
+                      final isSelected =
+                          _facultyController.text.trim().toLowerCase() ==
+                          option.toLowerCase();
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            _facultyController.text = option;
+                            _isFacultyDropdownOpen = false;
+                          });
+                          FocusScope.of(context).unfocus();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSelected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.school_outlined,
+                                size: 17,
+                                color: isSelected
+                                    ? const Color(0xFF6B8E00)
+                                    : textSecondary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  option,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
