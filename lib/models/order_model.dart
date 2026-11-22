@@ -36,6 +36,8 @@ class OrderModel {
   final DateTime? completedAt;
   final DateTime? cancelledAt;
   final String? cancelReason;
+  final int? matchTier;   // 1, 2, atau 3 — dikunci saat driver menerima order
+  final int? fareFinal;   // Tarif final (Rp) — dikunci saat driver menerima order
 
   const OrderModel({
     required this.orderId,
@@ -56,6 +58,8 @@ class OrderModel {
     this.completedAt,
     this.cancelledAt,
     this.cancelReason,
+    this.matchTier,
+    this.fareFinal,
   });
 
   factory OrderModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -78,6 +82,8 @@ class OrderModel {
       completedAt: data['completedAt'] != null ? _parseDateTime(data['completedAt']) : null,
       cancelledAt: data['cancelledAt'] != null ? _parseDateTime(data['cancelledAt']) : null,
       cancelReason: data['cancelReason'],
+      matchTier: data['matchTier'] as int?,
+      fareFinal: data['fareFinal'] as int?,
     );
   }
 
@@ -100,6 +106,8 @@ class OrderModel {
       'completedAt': completedAt?.toIso8601String(),
       'cancelledAt': cancelledAt?.toIso8601String(),
       'cancelReason': cancelReason,
+      'matchTier': matchTier,
+      'fareFinal': fareFinal,
     };
   }
 
@@ -122,6 +130,8 @@ class OrderModel {
     DateTime? completedAt,
     DateTime? cancelledAt,
     String? cancelReason,
+    int? matchTier,
+    int? fareFinal,
   }) {
     return OrderModel(
       orderId: orderId ?? this.orderId,
@@ -142,6 +152,8 @@ class OrderModel {
       completedAt: completedAt ?? this.completedAt,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       cancelReason: cancelReason ?? this.cancelReason,
+      matchTier: matchTier ?? this.matchTier,
+      fareFinal: fareFinal ?? this.fareFinal,
     );
   }
 

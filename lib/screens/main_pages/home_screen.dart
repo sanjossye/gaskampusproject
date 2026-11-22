@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart' as pesanan;
 import 'profile_screen.dart';
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen>
                   }
                   if (data['facultas'] != null &&
                       (data['facultas'] as String).isNotEmpty) {
-                    _userFaculty = data['facultas'] as String;
+                    _userFaculty = facultyDisplayName(data['facultas'] as String);
                   }
                   _userPhotoUrl = (data['photoUrl'] ?? '').toString().trim();
                 });

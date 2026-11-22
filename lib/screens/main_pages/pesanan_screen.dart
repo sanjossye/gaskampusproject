@@ -1558,37 +1558,42 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
 
   static const List<Map<String, dynamic>> _presetPlaces = [
     {
-      'title': 'Biro Rektor USU (Zona A)',
-      'sub': 'Jl. Dr. T. Mansur No. 9, Padang Bulan, Medan',
-      'pos': LatLng(3.5655, 98.6565),
-    },
-    {
-      'title': 'Fakultas Teknik USU (Zona B)',
-      'sub': 'Jl. Almamater Kampus USU, Padang Bulan',
-      'pos': LatLng(3.5612, 98.6540),
-    },
-    {
-      'title': 'Fasilkom-TI USU',
+      'title': 'Fasilkom-TI & Fak. Kedokteran USU',
       'sub': 'Jl. Universitas No. 9, Kampus USU Medan',
       'pos': LatLng(3.5620, 98.6592),
     },
     {
-      'title': 'Perpustakaan Pusat USU (Zona C)',
+      'title': 'Perpustakaan Pusat & Fak. Teknik USU',
       'sub': 'Jl. Perpustakaan No. 1, Kampus USU',
       'pos': LatLng(3.5635, 98.6580),
     },
     {
-      'title': 'Gerbang Pintu 1 USU',
-      'sub': 'Jl. Dr. Mansyur, Padang Bulan, Medan Baru',
-      'pos': LatLng(3.5675, 98.6566),
+      'title': 'Politeknik Negeri Medan (Polmed)',
+      'sub': 'Jl. Almamater No. 1, Kampus USU Medan',
+      'pos': LatLng(3.5650, 98.6545),
     },
     {
-      'title': 'Asrama Mahasiswa USU',
-      'sub': 'Jl. Dr. Sofyan, Kampus USU Padang Bulan',
-      'pos': LatLng(3.5575, 98.6585),
+      'title': 'FMIPA & Teknik Elektro/Mesin USU',
+      'sub': 'Jl. Bioteknologi No. 1, Kampus USU',
+      'pos': LatLng(3.5610, 98.6545),
     },
     {
-      'title': 'Kosan Sumber & Jl. Berdikari (Zona D)',
+      'title': 'Fakultas Vokasi & Pertanian USU',
+      'sub': 'Jl. Prof. A. Sofian No. 3, Kampus USU',
+      'pos': LatLng(3.5575, 98.6545),
+    },
+    {
+      'title': 'FISIP & Fak. Ekonomi dan Bisnis USU',
+      'sub': 'Jl. Dr. T. Mansur, Kampus USU Padang Bulan',
+      'pos': LatLng(3.5575, 98.6580),
+    },
+    {
+      'title': 'Biro Rektor & Gerbang Pintu 1 USU',
+      'sub': 'Jl. Dr. T. Mansur No. 9, Padang Bulan, Medan',
+      'pos': LatLng(3.5655, 98.6565),
+    },
+    {
+      'title': 'Kosan Sumber & Jl. Berdikari',
       'sub': 'Jalan Berdikari, Padang Bulan, Medan',
       'pos': LatLng(3.5502, 98.6488),
     },
@@ -1596,11 +1601,6 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
       'title': 'Stasiun Medan',
       'sub': 'Jl. Stasiun Kereta Api, Kesawan, Medan Barat',
       'pos': LatLng(3.5912, 98.6775),
-    },
-    {
-      'title': 'Plaza Medan Fair',
-      'sub': 'Jl. Gatot Subroto No. 30, Sekip, Medan Petisah',
-      'pos': LatLng(3.5914, 98.6615),
     },
   ];
 
@@ -1718,80 +1718,67 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
         children: [
           // ── 1. Full-Screen Interactive Map ──
           Positioned.fill(
-            child: FlutterMap(
+            child: GasKampusLiveMap(
               mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _selectedPos,
-                initialZoom: 16.0,
-                minZoom: 11.0,
-                maxZoom: 19.0,
-                onTap: (_, latLng) {
-                  FocusScope.of(context).unfocus();
-                  _moveSelectionTo(latLng);
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-                  userAgentPackageName: 'com.gaskampus.app',
-                  maxNativeZoom: 19,
-                ),
-                MarkerLayer(
-                  markers: [
-                    // Marker Titik Terpilih (gaya Pin seperti gambar referensi)
-                    Marker(
-                      point: _selectedPos,
-                      width: 64,
-                      height: 76,
-                      alignment: Alignment.topCenter,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF67A3D9),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 3,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black45,
-                                  blurRadius: 10,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.circle,
-                                color: Colors.white,
-                                size: 12,
-                              ),
-                            ),
+              mapStyle: GasMapStyle.street,
+              initialCenter: _selectedPos,
+              initialZoom: 16.0,
+              onTap: (_, latLng) {
+                FocusScope.of(context).unfocus();
+                _moveSelectionTo(latLng);
+              },
+              markers: [
+                // Marker Titik Terpilih (gaya Pin seperti gambar referensi)
+                Marker(
+                  point: _selectedPos,
+                  width: 64,
+                  height: 76,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF67A3D9),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 3,
                           ),
-                          Container(
-                            width: 4,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(2),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black38,
-                                  blurRadius: 4,
-                                ),
-                              ],
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black45,
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
                             ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.circle,
+                            color: Colors.white,
+                            size: 12,
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                      Container(
+                        width: 4,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black38,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

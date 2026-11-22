@@ -9,6 +9,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:gas_kampusapp/services/seed_services.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 
 enum GasMapStyle {
   street('Jalan', Icons.map_outlined),
@@ -31,28 +33,9 @@ enum GasMapStyle {
   }
 }
 
-class CampusZoneInfo {
-  final String id;
-  final String name;
-  final String hotspotTitle;
-  final int waitingOrders;
-  final int waitMinutes;
-  final LatLng center;
-  final List<LatLng> polygonPoints;
-  final Color color;
+// ── Value objects dikembalikan oleh MapRouteService ──────────────────────────
 
-  const CampusZoneInfo({
-    required this.id,
-    required this.name,
-    required this.hotspotTitle,
-    required this.waitingOrders,
-    required this.waitMinutes,
-    required this.center,
-    required this.polygonPoints,
-    required this.color,
-  });
-}
-
+/// Hasil rute jalan (dari OSRM atau fallback lokal).
 class RoadRouteResult {
   final List<LatLng> points;
   final double distanceKm;
@@ -67,6 +50,7 @@ class RoadRouteResult {
   });
 }
 
+/// Hasil GPS driver — posisi + heading + flag apakah GPS perangkat nyata.
 class DriverGpsResult {
   final LatLng position;
   final double heading;
@@ -75,7 +59,7 @@ class DriverGpsResult {
   const DriverGpsResult({
     required this.position,
     this.heading = 0.0,
-    required this.isRealDeviceGps,
+    this.isRealDeviceGps = false,
   });
 }
 
@@ -173,6 +157,8 @@ class MapRouteService {
     return defaultKampusCenter;
   }
 
+  /// Polygon Geofencing dipindahkan ke ZoneService — lihat lib/services/zone_service.dart
+
   /// Mencari koordinat alamat secara online (Photon Geocoder) jika tidak ada di kamus lokal
   static Future<LatLng> searchOrResolveCoordinate(
     String address, {
@@ -218,72 +204,6 @@ class MapRouteService {
     } catch (_) {}
 
     return resolveCoordinate(address, fallbackZone: fallbackZone);
-  }
-
-  /// Polygon Geofencing 4 Zona Operasional Utama Kampus USU Medan
-  static List<CampusZoneInfo> getCampusZones() {
-    return const [
-      CampusZoneInfo(
-        id: 'Zona A',
-        name: 'Zona A · Biro Rektor & Pintu 1 USU',
-        hotspotTitle: 'Pintu 1 USU - Jl. Dr. Mansyur (Zona A)',
-        waitingOrders: 8,
-        waitMinutes: 5,
-        center: LatLng(3.5658, 98.6565),
-        color: Color(0xFFC0F637),
-        polygonPoints: [
-          LatLng(3.5685, 98.6540),
-          LatLng(3.5685, 98.6592),
-          LatLng(3.5636, 98.6592),
-          LatLng(3.5636, 98.6540),
-        ],
-      ),
-      CampusZoneInfo(
-        id: 'Zona B',
-        name: 'Zona B · Fak. Teknik, Fasilkom-TI & Vokasi USU',
-        hotspotTitle: 'Kantin Vokasi & Fak. Teknik USU (Zona B)',
-        waitingOrders: 12,
-        waitMinutes: 3,
-        center: LatLng(3.5608, 98.6542),
-        color: Color(0xFF38BDF8),
-        polygonPoints: [
-          LatLng(3.5634, 98.6512),
-          LatLng(3.5634, 98.6568),
-          LatLng(3.5584, 98.6568),
-          LatLng(3.5584, 98.6512),
-        ],
-      ),
-      CampusZoneInfo(
-        id: 'Zona C',
-        name: 'Zona C · Perpus Pusat, Auditorium & Pintu 4 USU',
-        hotspotTitle: 'Bundaran Perpus & Pintu 4 USU (Zona C)',
-        waitingOrders: 6,
-        waitMinutes: 4,
-        center: LatLng(3.5595, 98.6598),
-        color: Color(0xFFFB923C),
-        polygonPoints: [
-          LatLng(3.5648, 98.6572),
-          LatLng(3.5648, 98.6625),
-          LatLng(3.5568, 98.6625),
-          LatLng(3.5568, 98.6572),
-        ],
-      ),
-      CampusZoneInfo(
-        id: 'Zona D',
-        name: 'Zona D · Padang Bulan, Sumber & Dr. Mansyur',
-        hotspotTitle: 'Kosan Sumber & Jl. Dr. Mansyur Medan (Zona D)',
-        waitingOrders: 15,
-        waitMinutes: 2,
-        center: LatLng(3.5528, 98.6485),
-        color: Color(0xFFA78BFA),
-        polygonPoints: [
-          LatLng(3.5578, 98.6445),
-          LatLng(3.5578, 98.6530),
-          LatLng(3.5485, 98.6530),
-          LatLng(3.5485, 98.6445),
-        ],
-      ),
-    ];
   }
 
   /// Mendapatkan rute jalan asli via OSRM (OpenStreetMap Routing Machine)
@@ -752,23 +672,7 @@ class MapRouteService {
     }
   }
 
-  /// Menghasilkan layer Polygon Zona Geofencing Kampus untuk FlutterMap
-  static List<Polygon> buildCampusZonePolygons({bool isDarkMap = false}) {
-    return getCampusZones().map((zone) {
-      return Polygon(
-        points: zone.polygonPoints,
-        color: zone.color.withValues(alpha: isDarkMap ? 0.16 : 0.12),
-        borderStrokeWidth: 1.8,
-        borderColor: zone.color.withValues(alpha: 0.8),
-        label: zone.id,
-        labelStyle: TextStyle(
-          color: isDarkMap ? Colors.white : const Color(0xFF1D2210),
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-      );
-    }).toList();
-  }
+  /// Zona polygon layer dipindahkan ke ZoneService — tidak ditampilkan ke UI.
 
   /// Marker animasi motor driver dengan rotasi arah perjalanan (heading)
   static Marker buildDriverMotorMarker({
@@ -874,6 +778,10 @@ class MapRouteService {
   }
 }
 
+/// Saklar boolean untuk menampilkan/menyembunyikan overlay debug Zona A–F di peta.
+/// Ubah ke `true` saat ingin mengecek polygon Zona A–F & tap koordinat di mode debug.
+const bool kEnableZoneDebugOverlay = false;
+
 /// Canvas peta interaktif asli berbasis Google Maps Tiles (Jalan / Terrain / Satelit)
 class GasKampusLiveMap extends StatefulWidget {
   final MapController mapController;
@@ -882,7 +790,6 @@ class GasKampusLiveMap extends StatefulWidget {
   final double initialZoom;
   final List<Polyline> polylines;
   final List<Marker> markers;
-  final bool showCampusZones;
   final VoidCallback? onMapReady;
   final void Function(TapPosition tapPosition, LatLng point)? onTap;
 
@@ -894,7 +801,6 @@ class GasKampusLiveMap extends StatefulWidget {
     this.initialZoom = 14.5,
     this.polylines = const [],
     this.markers = const [],
-    this.showCampusZones = true,
     this.onMapReady,
     this.onTap,
   });
@@ -905,18 +811,92 @@ class GasKampusLiveMap extends StatefulWidget {
 
 class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
   late final NetworkTileProvider _tileProvider;
+  List<CampusZone> _debugZones = const [];
+  bool _debugShowZones = true;
 
   @override
   void initState() {
     super.initState();
     _tileProvider = NetworkTileProvider(silenceExceptions: true);
+    if (kDebugMode && kEnableZoneDebugOverlay) {
+      _loadDebugZones();
+    }
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (kDebugMode && kEnableZoneDebugOverlay) {
+      _loadDebugZones();
+    }
+  }
+
+  Future<void> _loadDebugZones() async {
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return;
+    var zones = await ZoneService.loadZones();
+    if (zones.isEmpty) {
+      // Jika koleksi `zones` di Firestore belum pernah di-seed, seed ke Firestore
+      // terlebih dahulu lalu baca ulang dari Firestore via ZoneService.loadZones().
+      try {
+        await SeedService().seedZones();
+        ZoneService.clearCache();
+        zones = await ZoneService.loadZones();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() => _debugZones = zones);
+  }
+
+  Color _debugZoneColor(String id) {
+    switch (id) {
+      case 'A':
+        return const Color(0xFFEF4444); // Merah
+      case 'B':
+        return const Color(0xFF3B82F6); // Biru
+      case 'C':
+        return const Color(0xFF10B981); // Hijau
+      case 'D':
+        return const Color(0xFFF59E0B); // Amber
+      case 'E':
+        return const Color(0xFF8B5CF6); // Ungu
+      case 'F':
+        return const Color(0xFFEC4899); // Pink
+      default:
+        return const Color(0xFF06B6D4);
+    }
+  }
+
+  LatLng _polygonCenter(List<LatLng> pts) {
+    double lat = 0;
+    double lng = 0;
+    for (final p in pts) {
+      lat += p.latitude;
+      lng += p.longitude;
+    }
+    return LatLng(lat / pts.length, lng / pts.length);
+  }
+
+  void _handleDebugTap(TapPosition tapPosition, LatLng point) {
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return;
+    final matched = zoneOfPoint(point, _debugZones);
+    final coordText =
+        '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+    final resultText = matched != null ? 'Zona $matched' : 'di luar kampus';
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('DEBUG: $coordText → $resultText'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDarkTile = widget.mapStyle == GasMapStyle.satellite;
-
-    return FlutterMap(
+    final map = FlutterMap(
       mapController: widget.mapController,
       options: MapOptions(
         initialCenter: widget.initialCenter,
@@ -924,7 +904,14 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
         minZoom: 11.0,
         maxZoom: 19.0,
         onMapReady: widget.onMapReady,
-        onTap: widget.onTap,
+        onTap: (widget.onTap != null || (kDebugMode && kEnableZoneDebugOverlay))
+            ? (tapPos, point) {
+                widget.onTap?.call(tapPos, point);
+                if (kDebugMode && kEnableZoneDebugOverlay) {
+                  _handleDebugTap(tapPos, point);
+                }
+              }
+            : null,
       ),
       children: [
         TileLayer(
@@ -933,14 +920,94 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
           userAgentPackageName: 'com.gaskampus.app',
           maxNativeZoom: 19,
         ),
-        if (widget.showCampusZones)
+        if (kDebugMode && kEnableZoneDebugOverlay && _debugShowZones && _debugZones.isNotEmpty)
           PolygonLayer(
-            polygons: MapRouteService.buildCampusZonePolygons(isDarkMap: isDarkTile),
+            polygons: _debugZones.map((z) {
+              final c = _debugZoneColor(z.id);
+              return Polygon(
+                points: z.polygon,
+                color: c.withValues(alpha: 0.22),
+                borderColor: c,
+                borderStrokeWidth: 2.5,
+              );
+            }).toList(),
           ),
         if (widget.polylines.isNotEmpty)
           PolylineLayer(polylines: widget.polylines),
+        if (kDebugMode && kEnableZoneDebugOverlay && _debugShowZones && _debugZones.isNotEmpty)
+          MarkerLayer(
+            markers: _debugZones.map((z) {
+              final c = _debugZoneColor(z.id);
+              return Marker(
+                point: _polygonCenter(z.polygon),
+                width: 30,
+                height: 30,
+                child: IgnorePointer(
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.90),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black38, blurRadius: 4),
+                      ],
+                    ),
+                    child: Text(
+                      z.id,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         if (widget.markers.isNotEmpty)
           MarkerLayer(markers: widget.markers),
+      ],
+    );
+
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return map;
+
+    return Stack(
+      children: [
+        Positioned.fill(child: map),
+        Positioned(
+          top: 96,
+          left: 12,
+          child: Material(
+            color: Colors.black.withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(99),
+            elevation: 4,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(99),
+              onTap: () {
+                setState(() => _debugShowZones = !_debugShowZones);
+                if (_debugShowZones && _debugZones.isEmpty) {
+                  ZoneService.clearCache();
+                  _loadDebugZones();
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  'DEBUG: Zona ${_debugShowZones ? 'ON' : 'OFF'}',
+                  style: TextStyle(
+                    color: _debugShowZones
+                        ? const Color(0xFFC0F637)
+                        : Colors.white70,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

@@ -1115,7 +1115,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
                             children: const [
                               Icon(Icons.location_city, size: 14, color: Colors.grey),
                               SizedBox(width: 4),
-                              Text('Zona B (Teknik) & Zona C', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                              Text('Fak. Teknik & Perpustakaan USU', style: TextStyle(color: Colors.grey, fontSize: 12)),
                             ],
                           ),
                           Row(
@@ -1511,15 +1511,18 @@ class _HotspotRadarSheet extends StatefulWidget {
 
 class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
   final MapController _radarMapController = MapController();
-  late final List<CampusZoneInfo> _zones;
-  String _selectedZoneId = 'Zona B';
+  int _selectedIndex = 0;
   bool _isMapReady = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _zones = MapRouteService.getCampusZones();
-  }
+  // Hotspot penjemputan statis — nama area, bukan zona.
+  static const _hotspots = [
+    {'title': 'Pintu 1 USU & Jl. Dr. Mansyur', 'orders': 8, 'wait': 5, 'lat': 3.5658, 'lng': 98.6565, 'color': 0xFFC0F637},
+    {'title': 'Fak. Teknik & Fasilkom-TI USU', 'orders': 12, 'wait': 3, 'lat': 3.5608, 'lng': 98.6542, 'color': 0xFF38BDF8},
+    {'title': 'Perpustakaan & Pintu 4 USU', 'orders': 6, 'wait': 4, 'lat': 3.5595, 'lng': 98.6598, 'color': 0xFFFB923C},
+    {'title': 'FMIPA & Teknik Elektro USU', 'orders': 10, 'wait': 3, 'lat': 3.5607, 'lng': 98.6545, 'color': 0xFFA78BFA},
+    {'title': 'Vokasi & Fak. Pertanian USU', 'orders': 5, 'wait': 6, 'lat': 3.5577, 'lng': 98.6545, 'color': 0xFF34D399},
+    {'title': 'FISIP & Fak. Ekonomi Bisnis USU', 'orders': 15, 'wait': 2, 'lat': 3.5582, 'lng': 98.6577, 'color': 0xFFF472B6},
+  ];
 
   @override
   void dispose() {
@@ -1527,10 +1530,11 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
     super.dispose();
   }
 
-  void _focusZone(CampusZoneInfo zone) {
-    setState(() => _selectedZoneId = zone.id);
+  void _focusHotspot(int index) {
+    final h = _hotspots[index];
+    setState(() => _selectedIndex = index);
     if (_isMapReady) {
-      _radarMapController.move(zone.center, 15.6);
+      _radarMapController.move(LatLng(h['lat'] as double, h['lng'] as double), 15.6);
     }
   }
 
@@ -1585,12 +1589,12 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
               ],
             ),
             const Text(
-              'Peta live zona kumpul mahasiswa & permintaan order tinggi:',
+              'Peta live area kumpul mahasiswa & permintaan order tinggi:',
               style: TextStyle(color: Colors.grey, fontSize: 12.5),
             ),
             const SizedBox(height: 12),
 
-            // Peta Asli Hotspot Kampus UI
+            // Peta Hotspot Kampus
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
               child: SizedBox(
@@ -1602,67 +1606,44 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
                   initialCenter: MapRouteService.defaultKampusCenter,
                   initialZoom: 14.3,
                   onMapReady: () => _isMapReady = true,
-                  markers: _zones.map((zone) {
-                    final isSelected = zone.id == _selectedZoneId;
+                  markers: List.generate(_hotspots.length, (i) {
+                    final h = _hotspots[i];
+                    final isSelected = i == _selectedIndex;
+                    final color = Color(h['color'] as int);
                     return Marker(
-                      point: zone.center,
+                      point: LatLng(h['lat'] as double, h['lng'] as double),
                       width: 68,
                       height: 44,
                       child: GestureDetector(
-                        onTap: () => _focusZone(zone),
+                        onTap: () => _focusHotspot(i),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? kPrimary
-                                : const Color(0xFF1D2210),
+                            color: isSelected ? kPrimary : const Color(0xFF1D2210),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: isSelected ? Colors.black : zone.color,
+                              color: isSelected ? Colors.black : color,
                               width: 2,
                             ),
                             boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black38,
-                                blurRadius: 5,
-                                offset: Offset(0, 2),
-                              ),
+                              BoxShadow(color: Colors.black38, blurRadius: 5, offset: Offset(0, 2)),
                             ],
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '${zone.waitingOrders} Order',
-                                style: TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: isSelected
-                                      ? Colors.black
-                                      : Colors.white,
-                                ),
+                          child: Center(
+                            child: Text(
+                              '${h['orders']} Order',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: isSelected ? Colors.black : Colors.white,
                               ),
-                              Text(
-                                zone.id,
-                                style: TextStyle(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? Colors.black87
-                                      : zone.color,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ),
               ),
             ),
@@ -1672,32 +1653,26 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
               constraints: const BoxConstraints(maxHeight: 210),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: _zones.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemCount: _hotspots.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final zone = _zones[index];
-                  final isSelected = zone.id == _selectedZoneId;
+                  final h = _hotspots[index];
+                  final isSelected = index == _selectedIndex;
+                  final color = Color(h['color'] as int);
                   return InkWell(
-                    onTap: () => _focusZone(zone),
+                    onTap: () => _focusHotspot(index),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? kPrimary.withValues(alpha: 0.14)
-                            : (widget.isDark
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFFF8FAFC)),
+                            : (widget.isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
                               ? kPrimary
-                              : (widget.isDark
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFFE2E8F0)),
+                              : (widget.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                         ),
                       ),
                       child: Row(
@@ -1705,14 +1680,10 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: zone.color.withValues(alpha: 0.2),
+                              color: color.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
-                              Icons.near_me,
-                              color: zone.color,
-                              size: 16,
-                            ),
+                            child: Icon(Icons.near_me, color: color, size: 16),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1720,38 +1691,28 @@ class _HotspotRadarSheetState extends State<_HotspotRadarSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  zone.hotspotTitle,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12.5,
-                                  ),
+                                  h['title'] as String,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${zone.waitingOrders} Order menunggu · Estimasi ${zone.waitMinutes}m',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 11,
-                                  ),
+                                  '${h['orders']} Order menunggu · Estimasi ${h['wait']}m',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 11),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 6),
                           IconButton(
-                            tooltip: 'Buka Google Maps ke ${zone.id}',
+                            tooltip: 'Navigasi ke ${h['title']}',
                             onPressed: () {
                               MapRouteService.openGoogleMapsNavigation(
-                                destination: zone.center,
+                                destination: LatLng(h['lat'] as double, h['lng'] as double),
                               );
                             },
-                            icon: const Icon(
-                              Icons.directions_rounded,
-                              color: kPrimary,
-                              size: 20,
-                            ),
+                            icon: const Icon(Icons.directions_rounded, color: kPrimary, size: 20),
                           ),
                         ],
                       ),

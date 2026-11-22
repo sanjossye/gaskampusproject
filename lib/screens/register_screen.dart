@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/auth_services.dart';
+import '../services/zone_service.dart';
 import 'main_pages/jadwal_kuliah_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
@@ -42,6 +43,17 @@ const List<String> kFacultyOptions = [
   'Fakultas Kedokteran Gigi (FKG)',
   'Fakultas Kehutanan',
   'Fakultas Vokasi',
+];
+
+/// Daftar pilihan Jurusan wajib ketika Fakultas = Fakultas Teknik (FT).
+const List<String> kTeknikMajorOptions = [
+  'Arsitektur',
+  'Teknik Sipil',
+  'Teknik Kimia',
+  'Teknik Lingkungan',
+  'Teknik Elektro',
+  'Teknik Mesin',
+  'Teknik Industri',
 ];
 
 /// Satu baris jadwal kuliah yang diisi saat pendaftaran.
@@ -88,7 +100,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _loading = false;
   bool _obscurePassword = true;
   bool _isFacultyDropdownOpen = false;
+  String? _selectedTeknikMajor;
   String _status = '';
+
+  bool get _isTeknikSelected =>
+      normalizeFaculty(_facultyController.text) == 'FT';
 
   /// Jadwal kuliah per hari (1 = Senin ... 5 = Jumat).
   final Map<int, List<_CourseEntry>> _schedules = {
@@ -358,6 +374,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               border: borderColor,
                               isDark: isDark,
                             ),
+                            if (_isTeknikSelected) ...[
+                              const SizedBox(height: 20),
+                              _buildTeknikMajorField(
+                                bg: inputBg,
+                                textColor: textPrimary,
+                                textSecondary: textSecondary,
+                                border: borderColor,
+                                isDark: isDark,
+                              ),
+                            ],
                           ],
 
                           const SizedBox(height: 24),
@@ -549,6 +575,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             nik: _isDriverUmum ? _nikController.text.trim() : null,
             phone: phone,
             faculty: _isStudentRole ? _facultyController.text.trim() : null,
+            jurusan: (_isStudentRole && _isTeknikSelected)
+                ? _selectedTeknikMajor
+                : null,
           )
           .timeout(const Duration(seconds: 30));
 
@@ -981,7 +1010,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     setState(() => _isFacultyDropdownOpen = true);
                   },
                   onChanged: (_) {
-                    setState(() => _isFacultyDropdownOpen = true);
+                    setState(() {
+                      _isFacultyDropdownOpen = true;
+                      if (!_isTeknikSelected) {
+                        _selectedTeknikMajor = null;
+                      }
+                    });
                   },
                   validator: (value) {
                     if ((value ?? '').trim().isEmpty) {
@@ -1007,6 +1041,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: () {
                     setState(() {
                       _facultyController.clear();
+                      _selectedTeknikMajor = null;
                       _isFacultyDropdownOpen = true;
                     });
                   },
@@ -1104,6 +1139,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onTap: () {
                           setState(() {
                             _facultyController.text = option;
+                            if (!_isTeknikSelected) {
+                              _selectedTeknikMajor = null;
+                            }
                             _isFacultyDropdownOpen = false;
                           });
                           FocusScope.of(context).unfocus();
@@ -1148,6 +1186,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildTeknikMajorField({
+    required Color bg,
+    required Color textColor,
+    required Color textSecondary,
+    required Color border,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Jurusan Fakultas Teknik (Wajib)',
+          style: TextStyle(
+            color: textColor.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: border),
+          ),
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedTeknikMajor,
+            isExpanded: true,
+            dropdownColor: isDark ? const Color(0xFF151C0A) : Colors.white,
+            style: TextStyle(color: textColor, fontSize: 14.5),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Pilih jurusan Teknik...',
+              hintStyle: TextStyle(
+                color: textColor.withOpacity(0.35),
+                fontSize: 13.5,
+              ),
+            ),
+            items: kTeknikMajorOptions
+                .map(
+                  (major) => DropdownMenuItem<String>(
+                    value: major,
+                    child: Text(major),
+                  ),
+                )
+                .toList(),
+            onChanged: (val) {
+              setState(() => _selectedTeknikMajor = val);
+            },
+            validator: (value) {
+              if (_isTeknikSelected && (value == null || value.trim().isEmpty)) {
+                return 'Jurusan wajib dipilih untuk Fakultas Teknik.';
+              }
+              return null;
+            },
+          ),
+        ),
       ],
     );
   }

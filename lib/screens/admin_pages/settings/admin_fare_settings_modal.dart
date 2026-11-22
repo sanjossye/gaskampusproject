@@ -25,15 +25,22 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
   List<FareTier> _currentTiers = List.from(FarePricingService.currentTiers);
   final Map<int, TextEditingController> _controllers = {};
   late final TextEditingController _perKmController;
+  late final TextEditingController _tier1DiscountController;
   bool _usePerKmPricing = FarePricingService.usePerKmPricing;
   bool _isLoading = true;
   bool _isSaving = false;
+
+  int get _currentDiscountPercent =>
+      ((1.0 - FarePricingService.tier1Multiplier) * 100).round().clamp(0, 90);
 
   @override
   void initState() {
     super.initState();
     _perKmController = TextEditingController(
       text: FarePricingService.pricePerKm.toString(),
+    );
+    _tier1DiscountController = TextEditingController(
+      text: _currentDiscountPercent.toString(),
     );
     _loadFromFirestore();
   }
@@ -47,6 +54,7 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
           _currentTiers = List.from(tiers);
           _usePerKmPricing = FarePricingService.usePerKmPricing;
           _perKmController.text = FarePricingService.pricePerKm.toString();
+          _tier1DiscountController.text = _currentDiscountPercent.toString();
           _syncControllers();
           _isLoading = false;
         });
@@ -86,6 +94,7 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
   @override
   void dispose() {
     _perKmController.dispose();
+    _tier1DiscountController.dispose();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -97,6 +106,20 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
+      final rawDiscount = int.tryParse(_tier1DiscountController.text.trim());
+      if (rawDiscount == null || rawDiscount < 0 || rawDiscount > 90) {
+        setState(() => _isSaving = false);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Diskon Tier 1 (Searah) harus berupa angka antara 0–90%.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      final tier1Mult =
+          double.parse(((100 - rawDiscount) / 100.0).toStringAsFixed(2));
+
       final perKmVal =
           int.tryParse(_perKmController.text.trim()) ??
           FarePricingService.pricePerKm;
@@ -120,6 +143,7 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
         updatedList,
         pricePerKm: perKmVal > 0 ? perKmVal : updatedList.first.price,
         usePerKmPricing: _usePerKmPricing,
+        tier1Multiplier: tier1Mult,
       );
 
       if (mounted) {
@@ -156,6 +180,7 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
         setState(() {
           _currentTiers = List.from(FarePricingService.defaultTiers);
           _perKmController.text = '5000';
+          _tier1DiscountController.text = '30';
           _usePerKmPricing = true;
           _syncControllers();
           _isSaving = false;
@@ -368,6 +393,64 @@ class _AdminFareSettingsModalState extends State<AdminFareSettingsModal> {
                                       : 'Nonaktif: Mengikuti rentang tabel 10 tier di bawah.',
                                   style: TextStyle(color: subColor, fontSize: 11),
                                 ),
+                              ),
+                              const Divider(height: 18),
+                              Row(
+                                children: [
+                                  const Icon(Icons.discount_outlined, color: Colors.green, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Diskon Tier 1 (Searah)',
+                                          style: TextStyle(
+                                            color: textColor,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Default 30% (multiplier 0.70). Rentang valid: 0–90%.',
+                                          style: TextStyle(color: subColor, fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  SizedBox(
+                                    width: 96,
+                                    height: 40,
+                                    child: TextField(
+                                      controller: _tier1DiscountController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      decoration: InputDecoration(
+                                        suffixText: ' %',
+                                        suffixStyle: TextStyle(
+                                          color: subColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                        filled: true,
+                                        fillColor: isDark ? Colors.black38 : Colors.white,
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

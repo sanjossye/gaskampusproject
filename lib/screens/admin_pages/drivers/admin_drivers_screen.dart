@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../models/user_model.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/fare_pricing_service.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 
 const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
@@ -157,7 +158,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
     final String docTitle = isGeneralDriver ? 'Kartu Tanda Penduduk (KTP)' : 'Kartu Tanda Mahasiswa (KTM)';
     final String docSubtitle = isGeneralDriver
         ? 'NIK: ${user.nik ?? '-'}'
-        : 'NIM: ${user.nim ?? '-'} • ${user.facultas ?? 'Fakultas'}';
+        : 'NIM: ${user.nim ?? '-'} • ${facultyDisplayName(user.facultas)}';
 
     final String docType = isGeneralDriver ? 'ktp' : 'ktm';
 
@@ -264,7 +265,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                           ],
                           if (user.facultas != null) ...[
                             const SizedBox(height: 8),
-                            _buildDetailRow(Icons.school_outlined, 'Fakultas', user.facultas!, textPrimary),
+                            _buildDetailRow(Icons.school_outlined, 'Fakultas', facultyDisplayName(user.facultas), textPrimary),
                           ],
                           if (user.vehiclePlate != null || user.vehicleBrand != null) ...[
                             const SizedBox(height: 8),
@@ -822,7 +823,9 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
       final matchesSearch = u.name.toLowerCase().contains(_searchQuery) ||
           (u.nim != null && u.nim!.contains(_searchQuery)) ||
           (u.nik != null && u.nik!.contains(_searchQuery)) ||
-          (u.facultas != null && u.facultas!.toLowerCase().contains(_searchQuery));
+          (u.facultas != null &&
+              (u.facultas!.toLowerCase().contains(_searchQuery) ||
+                  facultyDisplayName(u.facultas).toLowerCase().contains(_searchQuery)));
       return matchesSearch;
     }).toList();
 
@@ -911,7 +914,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                           const SizedBox(height: 3),
                           Text(
                             user.nim != null
-                                ? '${user.nim} • ${user.facultas ?? 'Fakultas'}'
+                                ? '${user.nim} • ${facultyDisplayName(user.facultas)}'
                                 : (user.nik != null ? 'NIK: ${user.nik}' : user.email),
                             style: const TextStyle(color: Colors.grey, fontSize: 11),
                             maxLines: 1,

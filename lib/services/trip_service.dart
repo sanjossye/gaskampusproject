@@ -148,6 +148,7 @@ class TripService {
   /// - Penumpang membayar tunai 100% langsung ke tangan driver di tempat.
   /// - Komisi hak platform 15% DIPOTONG LANGSUNG dari saldo GasPay driver (wallets/{driverId}).
   /// - Dicatat transaksi 'commission' (-Rp komisi 15%).
+  /// - Kalo misalnya
   Future<Map<String, dynamic>> completeTripAndProcessFinancials({
     required String orderId,
     required String driverId,

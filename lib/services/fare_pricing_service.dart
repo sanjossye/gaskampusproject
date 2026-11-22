@@ -67,6 +67,7 @@ class FarePricingService {
   static List<FareTier> _cachedTiers = List.from(defaultTiers);
   static int _pricePerKm = 5000;
   static bool _usePerKmPricing = true;
+  static double _tier1Multiplier = 0.70;
   static int? _accountCustomFarePerKm;
   static bool _hasInitialized = false;
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
@@ -77,6 +78,7 @@ class FarePricingService {
   static List<FareTier> get currentTiers => List.unmodifiable(_cachedTiers);
   static int get pricePerKm => _pricePerKm;
   static bool get usePerKmPricing => _usePerKmPricing;
+  static double get tier1Multiplier => _tier1Multiplier;
   static int? get accountCustomFarePerKm => _accountCustomFarePerKm;
 
   /// Harga efektif untuk jarak 1 km pada akun yang sedang aktif
@@ -109,6 +111,16 @@ class FarePricingService {
       final newMode = data['usePerKmPricing'] as bool;
       if (newMode != _usePerKmPricing) {
         _usePerKmPricing = newMode;
+        changed = true;
+      }
+    }
+
+    if (data.containsKey('tier1Multiplier')) {
+      final raw = data['tier1Multiplier'];
+      final double parsed = (raw is num) ? raw.toDouble() : -1.0;
+      final double validM = (parsed > 0.0 && parsed <= 1.0) ? parsed : 0.70;
+      if (validM != _tier1Multiplier) {
+        _tier1Multiplier = validM;
         changed = true;
       }
     }
@@ -293,6 +305,7 @@ class FarePricingService {
     List<FareTier> tiers, {
     int? pricePerKm,
     bool? usePerKmPricing,
+    double? tier1Multiplier,
   }) async {
     _cachedTiers = List.from(tiers);
     if (pricePerKm != null && pricePerKm > 0) {
@@ -303,6 +316,10 @@ class FarePricingService {
     if (usePerKmPricing != null) {
       _usePerKmPricing = usePerKmPricing;
     }
+    if (tier1Multiplier != null) {
+      _tier1Multiplier =
+          (tier1Multiplier > 0.0 && tier1Multiplier <= 1.0) ? tier1Multiplier : 0.70;
+    }
     _notifyListeners();
 
     final payload = {
@@ -310,6 +327,7 @@ class FarePricingService {
       'updatedBy': 'admin',
       'pricePerKm': _pricePerKm,
       'usePerKmPricing': _usePerKmPricing,
+      'tier1Multiplier': _tier1Multiplier,
       'tiers': tiers.map((t) => t.toMap()).toList(),
     };
 
@@ -344,12 +362,25 @@ class FarePricingService {
     }
   }
 
-  /// Kembalikan pengaturan tarif ke nilai default awal (10 tier standar, 1 km = Rp 5.000)
+  /// Kembalikan pengaturan tarif ke nilai default awal (10 tier standar, 1 km = Rp 5.000, diskon tier 1 = 30%)
   static Future<void> resetToDefault() async {
     await saveFareTiers(
       defaultTiers,
       pricePerKm: 5000,
       usePerKmPricing: true,
+      tier1Multiplier: 0.70,
     );
+  }
+
+  /// Terapkan pengali tier ke tarif dasar (setelah calculateMotorFare, termasuk customFarePerKm).
+  /// Tier 1 = multiplier dari distance_fare/pricing_rules (default 0.70), dibulatkan ke kelipatan Rp 500.
+  /// Tier 2 & 3 = tarif penuh.
+  static int applyTierMultiplier(int baseFare, int tier, {double? customMultiplier}) {
+    if (tier == 1) {
+      final rawM = customMultiplier ?? _tier1Multiplier;
+      final m = (rawM > 0.0 && rawM <= 1.0) ? rawM : 0.70;
+      return ((baseFare * m) / 500).round() * 500;
+    }
+    return baseFare;
   }
 }
