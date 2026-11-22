@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 import '../login_screen.dart';
 import 'topup_modal.dart';
 import 'favorite_drivers_screen.dart';
@@ -66,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _studentNim = data['nim'].toString().trim();
               }
               if ((data['facultas'] ?? '').toString().trim().isNotEmpty) {
-                _studentFaculty = data['facultas'].toString().trim();
+                _studentFaculty = facultyDisplayName(data['facultas'].toString());
               }
             });
           }

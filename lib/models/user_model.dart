@@ -10,6 +10,7 @@ class UserModel {
   final String? photoUrl;
   final String role; // mahasiswa, driver_kampus, driver_umum, admin
   final String? facultas;
+  final String? jurusan; // Nullable. Wajib jika fakultas = Teknik (zona B vs D).
   final bool isVerified;
   final bool isActive;
   final double rating;
@@ -33,6 +34,7 @@ class UserModel {
     this.photoUrl,
     required this.role,
     this.facultas,
+    this.jurusan,
     this.isVerified = false,
     this.isActive = true,
     this.rating = 0.0,
@@ -58,6 +60,7 @@ class UserModel {
       photoUrl: data['photoUrl'],
       role: data['role'] ?? 'mahasiswa',
       facultas: data['facultas'],
+      jurusan: data['jurusan'],
       isVerified: data['isVerified'] ?? false,
       isActive: data['isActive'] ?? true,
       rating: (data['rating'] ?? 0).toDouble(),
@@ -87,6 +90,7 @@ class UserModel {
       'photoUrl': photoUrl,
       'role': role,
       'facultas': facultas,
+      'jurusan': jurusan,
       'isVerified': isVerified,
       'isActive': isActive,
       'rating': rating,
@@ -112,6 +116,7 @@ class UserModel {
     String? photoUrl,
     String? role,
     String? facultas,
+    String? jurusan,
     bool? isVerified,
     bool? isActive,
     double? rating,
@@ -129,6 +134,7 @@ class UserModel {
       photoUrl: photoUrl ?? this.photoUrl,
       role: role ?? this.role,
       facultas: facultas ?? this.facultas,
+      jurusan: jurusan ?? this.jurusan,
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
       rating: rating ?? this.rating,

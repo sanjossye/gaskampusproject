@@ -35,6 +35,7 @@ figma : https://www.figma.com/design/odbPrUoxjrig8qauAUHQTc/Project-Gas-Kampus?n
   - [Admin Kampus](#12-admin-kampus)
 - [Arsitektur Backend](#-arsitektur-backend)
 - [Rancangan Model Data](#-rancangan-model-data)
+- [Sistem Login & Autentikasi](#-sistem-login--autentikasi)
 - [Teknologi yang Digunakan (Tech Stack)](#-teknologi-yang-digunakan-tech-stack)
 - [Prasyarat (Prerequisites)](#-prasyarat-prerequisites)
 - [Panduan Instalasi & Menjalankan Proyek](#-panduan-instalasi--menjalankan-proyek)
@@ -85,12 +86,12 @@ Desain lengkap: [Figma – Project Gas Kampus](https://www.figma.com/design/odbP
 - *(Fase 2 — ditunda)* **Makan (Campus Food)**, **Titip/Beliin (Campus Jastip)**, **Laundry**. Fokus MVP adalah Antar + One-Way karena itu pembeda utama GasKampus.
 
 ### 💳 3. Dompet Digital & Transaksi (GasPay)
-- Informasi saldo instan **GasPay** dan **Koin Kampus**.
+- Informasi saldo instan **GasPay** dan **Koin Kampus** — keduanya terhubung **real-time ke Firestore** (`wallets/{uid}`).
 - Top-Up dengan berbagai metode pembayaran (Virtual Account, E-Wallet, QRIS).
 - Riwayat transaksi debit/kredit (top-up, pembayaran, pendapatan driver, komisi, penarikan, refund).
 
 ### 💬 4. Komunikasi & Pelacakan Real-Time
-- **Peta Driver Terdekat:** Radar lokasi driver aktif di sekitar kampus.
+- **Peta Driver Terdekat:** Radar lokasi driver aktif di sekitar kampus (hanya yang `isOnline: true`).
 - **Status Tier Real-Time:** Penumpang melihat sistem sedang mencari di tier mana dan mendapat driver dari tier berapa.
 - **In-App Chat:** Obrolan langsung antara pemesan dan driver untuk konfirmasi titik jemput.
 - **Live Trip Status:** Status penjemputan, perjalanan aktif, hingga struk digital.
@@ -140,7 +141,7 @@ flowchart TD
 ```
 
 - Driver yang belum diverifikasi **tidak bisa online**.
-- **[menunggu keputusan]** Verifikasi email kampus (mis. `@mail.unpad.ac.id`) sebagai bukti mahasiswa aktif tanpa cek KTM manual. Ini cara paling murah, tapi masih menunggu keputusan pemilik proyek.
+- **[menunggu keputusan]** Verifikasi email kampus (mis. `@mail.unpad.ac.id`) sebagai bukti mahasiswa aktif tanpa cek KTM manual.
 
 ### 3. Jadwal Kuliah, Titik Asal & Sistem Zona
 
@@ -151,29 +152,34 @@ flowchart TD
 | Jadwal kuliah per hari | Senin 08:00–10:00, Fakultas X, Gedung A, R.302 | Menentukan zona tujuan & jam masuk/keluar |
 
 #### 3.2 Sistem Zona Kampus
-Kampus dibagi menjadi **4 zona: A, B, C, D**. Setiap zona berisi beberapa fakultas. Saat mahasiswa memasukkan jadwal, sistem membaca **fakultas → zona** secara otomatis.
+Kampus dibagi menjadi **6 zona: A, B, C, D, E, F**. Setiap zona berisi beberapa fakultas/gedung. Saat mahasiswa memasukkan jadwal, sistem membaca **fakultas → zona** secara otomatis.
 
-| Zona | Fakultas |
+> Pemetaan fakultas ke zona disimpan di Firestore (`zones`) dan bisa diubah admin, tidak di-hardcode di aplikasi. Polygon zona bersumber dari `assets/zones/usu_zones.geojson` dan di-seed ke Firestore saat data demo diisi.
+
+**Pemetaan Zona:**
+
+| Zona | Tempat |
 | :---: | :--- |
-| A | *(diisi admin)* |
-| B | *(diisi admin)* |
-| C | *(diisi admin)* |
-| D | *(diisi admin)* |
+| **A** | Fak. Kedokteran, Sekretariat BEM, Gelanggang Mahasiswa, Fasilkom-TI, Fak. Ilmu Budaya, Fak. Kedokteran Gigi, Gedung Pancasila |
+| **B** | Fak. Teknik (Arsitektur, Sipil, Kimia, Lingkungan), Aula Teknik, Perpustakaan USU, Fak. Psikologi, Magister Kenotariatan, Magister Manajemen |
+| **C** | Politeknik Negeri Medan |
+| **D** | Fak. Teknik (Elektro, Mesin, Industri), FMIPA |
+| **E** | Fak. Vokasi, Fak. Pertanian |
+| **F** | FISIP, Fak. Ekonomi dan Bisnis |
 
-> Pemetaan fakultas ke zona disimpan di Firestore (`zones`) dan bisa diubah admin, tidak di-hardcode di aplikasi.
+> ⚠️ **Catatan:** Fakultas Teknik **terbelah dua zona**: Zona B (Arsitektur, Sipil, Kimia, Lingkungan) dan Zona D (Elektro, Mesin, Industri). Penentu zona adalah **jurusan**, bukan nama fakultas. Field `jurusan` (nullable) tersedia di `UserModel` — wajib diisi jika fakultas = Teknik.
 
-**Patokan one-way bukan kelas yang sama**, melainkan **zona yang sama + jam yang berdekatan**. Analoginya: bukan "teman sekelas nebeng", tapi "orang yang memang lewat jalan yang sama ke area kampus yang sama".
+**Patokan one-way bukan kelas yang sama**, melainkan **zona yang sama + jam yang berdekatan**.
 
 #### 3.3 Jendela perjalanan
 Dari jadwal, sistem membuat dua jenis jendela untuk tiap hari:
 - **Berangkat:** sebelum jam mulai kelas pertama di suatu zona (mis. 08:00 → jendela 07:00–07:55).
-- **Pulang:** setelah jam selesai kelas terakhir (mis. 10:00 → jendela 10:00–10:45). **[asumsi]** One-way berlaku untuk berangkat dan pulang.
+- **Pulang:** setelah jam selesai kelas terakhir (mis. 10:00 → jendela 10:00–10:45).
 
 ### 4. Aktivasi Driver & Rekomendasi Jam Narik
 
 - Driver hanya punya **dua status yang ia pilih sendiri: Online / Offline**.
-- Driver **tidak memilih** "mode searah" atau "online biasa". **Sistem di belakang yang menentukan** apakah driver masuk tier 1 atau tier 2 untuk setiap order, berdasarkan jadwal, zona, waktu, dan posisinya.
-- Selain itu ada penanda internal yang diatur sistem (bukan driver): `activeOrderId`. Kalau terisi, driver sedang membawa order dan tidak ditawari order lain.
+- Driver **tidak memilih** "mode searah" atau "online biasa". **Sistem di belakang yang menentukan** apakah driver masuk tier 1 atau tier 2 untuk setiap order.
 
 **Rekomendasi jam narik** (dihitung dari jadwal driver):
 
@@ -182,9 +188,6 @@ Dari jadwal, sistem membuat dua jenis jendela untuk tiap hari:
 | 🟢 Slot Searah (tier 1) | Jendela berangkat & pulang driver | "Senin 07:15–07:50 — kamu searah ke Zona B. Online sekarang untuk tarif searah." |
 | 🔵 Slot Kosong (tier 2) | Jeda antar kelas ≥ 90 menit, dikurangi buffer 15 menit sebelum kelas berikutnya | "Senin 10:15–12:45 — jam kosong, cocok untuk narik." |
 | ⚪ Jangan narik | Saat jam kuliah berlangsung / < 15 menit sebelum kelas | Toggle online diberi peringatan |
-
-- Rekomendasi ditampilkan di **Driver Home** dan **halaman Jadwal**, plus notifikasi push ±10 menit sebelum slot dimulai.
-- *(Fase 2)* Rekomendasi juga mempertimbangkan data permintaan (jam ramai order) setelah data historis cukup.
 
 ### 5. Alur Pemesanan (Penumpang)
 
@@ -202,43 +205,23 @@ flowchart TD
     I -->|Tidak ada sampai batas waktu| K[Status: Tidak ada driver - Coba lagi]
 ```
 
-- Penumpang melihat **rentang tarif** sebelum order, sehingga tidak ada kejutan kalau ternyata dapat driver tier 2/3. Tarif final selalu ≤ batas atas rentang.
-
 ### 6. Sistem Matching 3 Tier (One-Way Pick-Up)
 
-Server **mengeliminasi driver secara bertahap**, dari yang paling murah untuk penumpang sampai driver umum.
-
-#### Syarat dasar semua tier
-Driver `isOnline = true`, `isVerified = true`, `isActive = true`, `activeOrderId = null`, berada dalam radius jemput dari titik penumpang, dan bukan driver yang sudah menolak order ini.
-
 #### Tier 1 — Driver Mahasiswa Searah (tarif jauh lebih murah)
-Semua syarat berikut harus terpenuhi:
-1. **Penumpang punya kelas** dalam jendela berangkat/pulang saat order dibuat, dan **tujuannya ada di zona kelas tersebut**.
-2. **Driver mahasiswa juga punya kelas di zona yang sama** hari itu.
-3. **Jam kelas berdekatan:** selisih jam mulai (berangkat) atau jam selesai (pulang) ≤ **30 menit** *(parameter, bisa diubah)*.
-4. **Searah:** jemput penumpang tidak membuat driver memutar lebih dari **±1 km** *(parameter)*.
-   ```
-   detour = jarak(driver → jemput) + jarak(jemput → tujuan) − jarak(driver → tujuan)
-   lolos jika detour ≤ 1 km
-   ```
-   Posisi driver = lokasi GPS saat online. Kalau tidak tersedia, pakai titik asal default.
-5. Estimasi tiba di tujuan **tidak membuat driver telat** masuk kelasnya sendiri.
+1. Penumpang & driver punya kelas di **zona yang sama**, jam berdekatan (selisih ≤ 30 menit).
+2. Jemput penumpang tidak membuat driver memutar lebih dari **±1 km** (parameter, bisa diubah).
+3. Estimasi tiba di tujuan **tidak membuat driver telat** masuk kelas.
 
 #### Tier 2 — Driver Mahasiswa Online Biasa (tarif sedikit lebih mahal)
-- Driver mahasiswa online yang **tidak lolos tier 1** untuk order ini.
-- **Tidak bentrok kelas:** `waktu sekarang + estimasi durasi trip + buffer 15 menit < jam mulai kelas berikutnya driver`.
+- Driver mahasiswa online yang tidak lolos tier 1.
+- Waktu sekarang + estimasi trip + buffer 15 menit < jam kelas berikutnya driver.
 
 #### Tier 3 — Driver Umum (tarif normal)
 - Driver non-mahasiswa yang online dan memenuhi syarat dasar.
 
-#### Urutan dalam satu tier
-Berdasarkan **jarak/ETA ke titik jemput terdekat**. Jika sama, pakai rating lebih tinggi.
-
-Kalau penumpang tidak punya kelas dalam jendela waktu (mis. order jam 10:17 ke kantin), **tier 1 otomatis dilewati** tanpa membuang waktu tunggu.
-
 ### 7. Penawaran Order & Pencarian Paralel
 
-Pencarian kandidat di **ketiga tier dijalankan paralel** sejak order masuk. Penawaran ke driver tetap **satu per satu sesuai urutan tier**, supaya satu order tidak diterima dua driver sekaligus.
+Pencarian kandidat di **ketiga tier dijalankan paralel** sejak order masuk. Penawaran ke driver tetap **satu per satu sesuai urutan tier**.
 
 ```mermaid
 sequenceDiagram
@@ -265,23 +248,13 @@ sequenceDiagram
     S-->>P: Driver ditemukan — Tier 2, tarif Rp X
 ```
 
-**Aturan penawaran:**
 | Parameter | Default *(bisa diubah di `config/dispatch`)* |
 | :--- | :--- |
 | Waktu tunggu per driver | 15 detik |
 | Maks. kandidat per tier | 3 driver |
 | Batas total pencarian | 90 detik → status `noDriver` |
-| Refresh kandidat | Setiap pindah tier (posisi driver berubah) |
-
-**Yang dilihat penumpang secara real-time:**
-- 🟢 "Mencari driver searah ke Zona B…" (tier 1)
-- 🔵 "Mencari driver mahasiswa terdekat…" (tier 2)
-- ⚪ "Mencari driver umum terdekat…" (tier 3)
-- ✅ "Driver ditemukan — **Tier 1 · Searah**, tarif Rp X" (badge tier tampil di kartu driver & struk)
 
 ### 8. Tarif
-
-Tarif dihitung **di server**, bukan di aplikasi.
 
 ```
 tarifDasar = max(tarifMinimum, biayaBuka + tarifPerKm × jarakKm)
@@ -295,9 +268,6 @@ tarifFinal = tarifTier − diskonPromo
 | 2 — Mahasiswa online | 0,85 |
 | 3 — Driver umum | 1,00 |
 
-- Tarif tier 1 tetap harus di atas biaya bensin + effort menjemput. Kalau terlalu murah, driver tidak tertarik, dan fitur searah jadi sepi.
-- Tarif **dikunci saat driver menerima** dan tidak berubah sampai trip selesai.
-
 ### 9. Siklus Status Trip
 
 ```mermaid
@@ -310,7 +280,7 @@ stateDiagram-v2
     onPickup --> arrived: Driver tekan "Saya Sudah Sampai"
     arrived --> onTrip: Driver tekan "Mulai Perjalanan"
     onTrip --> completed: Tiba di tujuan
-    accepted --> searching: Driver membatalkan (cari ulang tanpa driver tsb)
+    accepted --> searching: Driver membatalkan
     onPickup --> searching: Driver membatalkan
     accepted --> cancelled: Penumpang batal
     onPickup --> cancelled: Penumpang batal
@@ -318,8 +288,6 @@ stateDiagram-v2
     cancelled --> [*]
     noDriver --> [*]
 ```
-
-Selama `accepted` sampai `onTrip` tersedia: chat, tracking lokasi live, tombol bagikan lokasi.
 
 ### 10. Pembayaran & Bagi Hasil
 
@@ -329,31 +297,23 @@ Selama `accepted` sampai `onTrip` tersedia: chat, tracking lokasi live, tombol b
 | QRIS | Saat `completed` | Sama seperti GasPay |
 | Tunai | Dibayar langsung ke driver | Komisi platform dipotong dari saldo GasPay driver |
 
-- **[asumsi]** Komisi platform berupa persentase dari tarif final (nilai di `config/pricing`).
-- Setiap pergerakan uang dicatat sebagai `TransactionModel`: `topup`, `payment`, `earning`, `commission`, `withdrawal`, `refund`.
-
 ### 11. Pembatalan, Rating & Kasus Khusus
 
-- **Penumpang batal** sebelum driver menerima → gratis. **[asumsi]** Aturan biaya batal setelah driver menerima ditentukan kemudian.
-- **Driver batal** setelah menerima → order kembali `searching`, driver tersebut dikeluarkan dari antrean, dan pembatalan tercatat untuk evaluasi admin.
-- **Rating dua arah** setelah `completed`: penumpang → driver, driver → penumpang (wajib sebelum driver bisa menerima order baru).
-- **Driver offline/hilang sinyal saat trip** → order tetap aktif, penumpang diberi opsi hubungi driver atau laporkan ke admin.
-- **Driver mahasiswa mendekati jam kelas** → sistem berhenti menawarinya order tier 2 dan memberi pengingat untuk offline.
+- **Penumpang batal** sebelum driver menerima → gratis.
+- **Driver batal** setelah menerima → order kembali `searching`, driver dikeluarkan dari antrean.
+- **Rating dua arah** setelah `completed`: wajib sebelum driver bisa menerima order baru.
 
 ### 12. Admin Kampus
 
-- Verifikasi pendaftar driver (KTM/KTP, SIM, STNK): setujui atau tolak dengan alasan.
+- Verifikasi pendaftar driver (KTM/KTP, SIM, STNK): setujui atau tolak.
 - Suspend/aktifkan driver (`isActive`).
-- Monitoring order real-time & laporan (jumlah trip per tier, pendapatan, pembatalan).
+- Monitoring order real-time & laporan.
 - Kelola **pemetaan fakultas → zona**, parameter tarif (`config/pricing`), dan parameter dispatch (`config/dispatch`).
 - Kelola promo/voucher.
 
 ---
 
 ## 🏗 Arsitektur Backend
-
-### Kenapa matching & tarif harus di server
-Kalau tier dan tarif dihitung di HP, pengguna bisa memanipulasi aplikasi untuk selalu dapat tarif tier 1. Selain itu, Firestore tidak bisa langsung menjawab "driver dalam radius 3 km". Karena itu:
 
 ```mermaid
 flowchart LR
@@ -369,37 +329,110 @@ flowchart LR
     FS -->|listener real-time status| App
 ```
 
-| Masalah | Solusi |
-| :--- | :--- |
-| Cari driver terdekat | Simpan lokasi driver dalam bentuk **geohash** (package `geoflutterfire_plus` di app, `geofire-common` di Functions). Query per rentang geohash, lalu filter jarak sebenarnya (haversine). |
-| Update lokasi driver | App driver menulis lokasi ke `driver_locations/{uid}` setiap ±10 detik / 50 m saat online (bukan ke dokumen user, supaya hemat write). |
-| Matching & tier | Cloud Function `onOrderCreated` mengklasifikasi kandidat ketiga tier secara paralel (`Promise.all`) dan menyusun antrean di `orders/{id}/dispatch` (hanya bisa dibaca server). |
-| Timeout per driver | **Cloud Tasks** menjadwalkan pengecekan 15 detik per penawaran. Kalau belum diterima, pindah ke kandidat berikutnya. |
-| Dua driver menerima bersamaan | `acceptOffer` memakai **Firestore transaction**: hanya berhasil jika order masih `searching` dan penawaran ke driver itu masih berlaku. |
-| Notifikasi order masuk | **FCM** (`firebase_messaging`). |
-| Manipulasi data | **Security Rules:** aplikasi tidak boleh menulis `fareAmount`, `matchTier`, `driverId`, `status` (kecuali transisi milik driver yang sah lewat Functions), `isVerified`, saldo wallet. |
-| Peta & navigasi | `google_maps_flutter` + `geolocator`; estimasi jarak/durasi via Directions API atau haversine untuk MVP. |
-
-> ⚠️ Cloud Functions membutuhkan Firebase **Blaze plan** (bayar sesuai pemakaian, tetap ada kuota gratis). Untuk development, semua bisa dites gratis di **Firebase Local Emulator Suite**.
+> ⚠️ Cloud Functions membutuhkan Firebase **Blaze plan**. Untuk development, semua bisa dites gratis di **Firebase Local Emulator Suite**.
 
 ---
 
 ## 🗂 Rancangan Model Data
 
-Model yang sudah ada di `lib/models/` dan perubahan yang dibutuhkan:
-
-| Model | Firestore | Perubahan yang dibutuhkan |
+| Model | Firestore | Keterangan |
 | :--- | :--- | :--- |
-| `UserModel` | `users/{uid}` | Ganti `role` menjadi `accountType: mahasiswa \| driver_umum \| admin`; tambah `isDriver`, `activeMode: pelanggan \| driver`, `facultyId`, `homeLocation` (lat, lng, alamat) **wajib untuk mahasiswa**. Perbaiki typo `facultas` → `faculty`. |
-| `DriverProfileModel` | `users/{uid}/driver_profile` | Tambah `driverType: mahasiswa \| umum`. Status pilihan driver cukup `isOnline` (online/offline). Tambah `activeOrderId` (diatur server). Hapus `status` string. Tambah dokumen KTP untuk driver umum. |
-| `DriverLocation` *(baru)* | `driver_locations/{uid}` | `lat`, `lng`, `geohash`, `updatedAt`, `isOnline`, `driverType` |
-| `ScheduleModel` | `users/{uid}/schedules` | Berlaku untuk **semua mahasiswa** (bukan hanya driver). Tambah `facultyId`, `zoneId` (diisi otomatis dari fakultas). |
-| `ZoneModel` *(baru)* | `zones/{zoneId}` | `name` (A/B/C/D), `facultyIds[]`, titik pusat zona |
-| `OrderModel` | `orders/{id}` | Tambah `serviceType`, `matchTier` (1/2/3), `searchStage`, `destinationZoneId`, `fareBreakdown` (dasar, pengali, diskon, final), `fareRange` (min–max), `promoId`, `arrivedAt`, `startedAt`. Status: tambah `searching`, `arrived`, `noDriver` (ganti `pending`). Ganti `PaymentMethod.gopay` → `qris`. |
-| `Dispatch` *(baru, server-only)* | `orders/{id}/dispatch/state` | `queue[]` (driverId, tier, jarak), `currentIndex`, `rejectedBy[]`, `deadline` |
-| `WalletModel` / `TransactionModel` | `wallets/{uid}` | Tambah `TransactionType.commission` dan `refund` |
-| `ReviewModel`, `PromoModel`, `ChatModel`, `NotificationModel`, `LeaderboardModel` | — | Sudah cukup untuk MVP |
-| `config` *(baru)* | `config/pricing`, `config/dispatch` | Parameter tarif & dispatch yang bisa diubah admin |
+| `UserModel` | `users/{uid}` | Field: `uid`, `name`, `email`, **`username`** (unik, lowercase), `nim`, `phone`, `role`, `facultas`, `isVerified`, `isActive`, **`isOnline`**, **`vehiclePlate`**, **`vehicleBrand`**, `rating`, `totalTrips`, `createdAt`, `updatedAt` |
+| `DriverProfileModel` | `users/{uid}/driver_profile` | Field kendaraan driver: `vehicleType`, `vehiclePlate`, `vehicleBrand`, `isOnline`, `status`, `memberSince` |
+| `WalletModel` | `wallets/{uid}` | Field: `userId`, **`balance`** (Rupiah), **`coins`** (Koin Kampus), `updatedAt` |
+| `TransactionModel` | `wallets/{uid}/transactions/{id}` | Jenis: `topup`, `payment`, `earning`, `withdrawal`, `refund` |
+| `ScheduleModel` | `users/{uid}/schedules` | Jadwal kuliah mahasiswa & driver |
+| `OrderModel` | `orders/{id}` | Status: `searching`, `accepted`, `onPickup`, `arrived`, `onTrip`, `completed`, `cancelled`, `noDriver` |
+| `ReviewModel` | — | Rating dua arah setelah trip selesai |
+| `PromoModel` | — | Voucher & promo |
+| `ChatModel` | — | Pesan in-app antara penumpang & driver |
+| `NotificationModel` | — | Notifikasi push & in-app |
+| `LeaderboardModel` | — | Papan peringkat driver |
+| `login_index/{identifier}` | `login_index` | Indeks login: `{ email, uid, type: "nim"\|"username"\|"phone" }` |
+| `config/pricing`, `config/dispatch` | `config` | Parameter tarif & dispatch yang bisa diubah admin |
+
+---
+
+## 🔐 Sistem Login & Autentikasi
+
+### Konsep
+Sistem login **tidak mengharuskan user mengetik email**. Kolom input login menerima salah satu dari:
+- **NIM** (khusus mahasiswa & driver kampus)
+- **Username** (semua role)
+- **Nomor HP** (semua role)
+
+Firebase Auth tetap bekerja dengan Email & Password di balik layar, namun email tersebut dikelola otomatis oleh sistem.
+
+### Komponen Utama
+
+| File | Peran |
+| :--- | :--- |
+| [`lib/services/auth_services.dart`](lib/services/auth_services.dart) | `AuthService`: login, register, logout, normalizeIdentifier, readableError |
+| [`lib/services/seed_services.dart`](lib/services/seed_services.dart) | `SeedService`: isi data demo ke Firebase Auth + Firestore |
+| [`lib/services/wallet_service.dart`](lib/services/wallet_service.dart) | `WalletService`: top-up, debit, mutasi transaksi |
+| [`lib/services/trip_service.dart`](lib/services/trip_service.dart) | `TripService`: alur perjalanan, bagi hasil, kalkulasi keuangan |
+| [`lib/services/fare_pricing_service.dart`](lib/services/fare_pricing_service.dart) | `FarePricingService`: model tier tarif, baca config dari Firestore |
+| [`lib/services/document_service.dart`](lib/services/document_service.dart) | `DocumentService`: simpan dokumen KTM/KTP/SIM/STNK driver |
+| [`lib/services/map_route_service.dart`](lib/services/map_route_service.dart) | `MapRouteService`: rute peta, haversine distance, geolokasi |
+| [`lib/services/admin_service.dart`](lib/services/admin_service.dart) | `AdminService`: query Firestore untuk dashboard admin |
+
+### Koleksi `login_index`
+
+Setiap user bisa punya hingga 3 dokumen di `login_index` (satu per identifier):
+
+```
+login_index/mahasiswa        → { email, uid, type: "username" }
+login_index/140610240001     → { email, uid, type: "nim" }
+login_index/6281200000001    → { email, uid, type: "phone" }
+```
+
+### Normalisasi Identifier (`AuthService.normalizeIdentifier`)
+
+| Input user | Hasil normalisasi | Tipe terdeteksi |
+| :--- | :--- | :--- |
+| `"Mahasiswa"` | `"mahasiswa"` | username |
+| `"140610240001"` | `"140610240001"` | nim |
+| `"0812-0000-0001"` | `"6281200000001"` | phone |
+| `"+6281200000001"` | `"6281200000001"` | phone |
+
+### Alur Login
+
+```
+Input: "140610240001" + "gaskampus123"
+  ↓ normalizeIdentifier → "140610240001"
+  ↓ GET login_index/140610240001 → { email: "mahasiswa.demo@gaskampus-dev.com", uid }
+  ↓ Firebase Auth: signInWithEmailAndPassword(email, password)
+  ↓ GET users/{uid} → UserModel
+  ↓ Cek isActive → route ke halaman sesuai role
+```
+
+### Keamanan
+
+- Password **tidak pernah disimpan di Firestore** — hanya di Firebase Auth (hashed).
+- Register menggunakan `WriteBatch`: dokumen `users/{uid}` dan semua `login_index` ditulis secara **atomic** (semuanya berhasil atau semua batal).
+- Sebelum register, sistem mengecek keunikan NIM, username, dan nomor HP ke `login_index`.
+
+### Firestore Security Rules (`firestore.rules`)
+
+```javascript
+// login_index: GET publik, LIST dilarang, write hanya untuk uid yang cocok
+match /login_index/{id} {
+  allow get: if true;
+  allow list: if false;
+  allow write: if request.auth != null && request.resource.data.uid == request.auth.uid;
+}
+// users/{uid}: read/write owner only; admin boleh read semua
+match /users/{uid} {
+  allow read: if request.auth.uid == uid || (admin check);
+  allow write: if request.auth.uid == uid;
+}
+// Collection lain: hanya user yang login
+match /{document=**} {
+  allow read, write: if request.auth != null;
+}
+```
+
+> ⚠️ Rules ini adalah **versi development** dan harus diperketat sebelum rilis production.
 
 ---
 
@@ -409,15 +442,16 @@ Model yang sudah ada di `lib/models/` dan perubahan yang dibutuhkan:
 | :--- | :--- | :--- |
 | **Framework** | [Flutter](https://flutter.dev/) (v3.27+) | UI Toolkit multi-platform dari Google |
 | **Bahasa Pemrograman** | [Dart](https://dart.dev/) (^3.11.1) | Bahasa pemrograman berorientasi objek yang cepat & bertipe aman |
-| **Autentikasi** | Firebase Auth | Login OTP nomor WA / email |
-| **Database** | Cloud Firestore | Data user, jadwal, order, wallet (real-time) |
+| **Autentikasi** | Firebase Auth (Email/Password) | Login dengan NIM / Username / Nomor HP via `login_index` |
+| **Database** | Cloud Firestore | Data user, jadwal, order, wallet, login_index (real-time) |
 | **Backend Logic** *(rencana)* | Cloud Functions + Cloud Tasks | Matching 3 tier, tarif, timeout penawaran |
 | **Notifikasi** *(rencana)* | Firebase Cloud Messaging | Penawaran order & pengingat jam narik |
-| **Peta & Lokasi** *(rencana)* | `google_maps_flutter`, `geolocator`, `geoflutterfire_plus` | Tracking & pencarian driver terdekat |
+| **Peta & Lokasi** | `flutter_map` ^8.3.2, `geolocator` ^14.1.2, `latlong2` ^0.10.1 | Peta tile (Google Maps style), GPS perangkat, kalkulasi haversine |
+| **HTTP Client** | `http` ^1.6.0 | Integrasi API rute jalan eksternal (OSRM / fallback) |
+| **Storage & Media** | `firebase_storage` ^14.0.1, `image_picker` ^1.2.4 | Upload KTM/KTP/SIM/STNK driver |
+| **URL & Deep Link** | `url_launcher` ^6.3.3 | Buka navigasi eksternal (Google Maps) |
 | **Typography** | [Google Fonts](https://pub.dev/packages/google_fonts) (Inter) | Tipografi bersih dan modern |
-| **Desain UI** | Material Design 3 + [Figma](https://www.figma.com/design/odbPrUoxjrig8qauAUHQTc/Project-Gas-Kampus?node-id=0-1&t=Xwcs1SiIAHW5Vfdy-1) | Desain sistem kontemporer dengan dynamic color |
-| **Ikon** | Material & Cupertino Icons | Ikonografi multi-platform Android dan iOS |
-| **Target Platform** | Web (Chrome, Edge), Android, iOS, Windows | Arsitektur responsif untuk berbagai ukuran layar |
+| **Desain UI** | Material Design 3 + [Figma](https://www.figma.com/design/odbPrUoxjrig8qauAUHQTc/) | Desain sistem kontemporer dengan dynamic color |
 
 ---
 
@@ -425,19 +459,20 @@ Model yang sudah ada di `lib/models/` dan perubahan yang dibutuhkan:
 
 Sebelum menjalankan proyek ini di komputer lokal, pastikan perangkat lunak berikut telah terpasang:
 
-1. **Git** (versi 2.x atau lebih baru) - [Download Git](https://git-scm.com/)
-2. **Flutter SDK** (versi minimum 3.24.0 atau disarankan 3.27+) - [Instalasi Flutter](https://docs.flutter.dev/get-started/install)
+1. **Git** (versi 2.x atau lebih baru) — [Download Git](https://git-scm.com/)
+2. **Flutter SDK** (versi minimum 3.24.0 atau disarankan 3.27+) — [Instalasi Flutter](https://docs.flutter.dev/get-started/install)
 3. **Dart SDK** (terbawa otomatis saat menginstal Flutter)
 4. **Google Chrome** (untuk menjalankan versi Web)
-5. **Android Studio** atau **VS Code** beserta ekstensi:
-   - *Flutter* (ekstensi resmi)
-   - *Dart* (ekstensi resmi)
-6. *(Untuk backend)* **Node.js** LTS + **Firebase CLI** (`npm install -g firebase-tools`)
+5. **Android Studio** atau **VS Code** beserta ekstensi Flutter & Dart
+6. **JDK 17+** — pastikan `JAVA_HOME` mengarah ke direktori JDK yang valid
+7. *(Untuk backend)* **Node.js** LTS + **Firebase CLI** (`npm install -g firebase-tools`)
 
 Periksa kesehatan instalasi Flutter dengan menjalankan:
 ```bash
 flutter doctor
 ```
+
+> **Catatan JDK (Windows):** Jika muncul error `JAVA_HOME is set to an invalid directory`, pastikan `JAVA_HOME` di Environment Variables mengarah ke JDK yang benar (mis. `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`), lalu restart terminal/IDE.
 
 ---
 
@@ -450,7 +485,6 @@ cd gaskampusproject
 ```
 
 ### 2. Pasang Dependensi
-Unduh semua dependensi paket yang tertera di `pubspec.yaml`:
 ```bash
 flutter pub get
 ```
@@ -460,144 +494,224 @@ flutter pub get
 #### 🌐 Opsi A: Jalankan di Google Chrome (Web)
 ```bash
 flutter run -d chrome
-```
-*Atau jalankan pada port spesifik:*
-```bash
+# atau pada port spesifik:
 flutter run -d chrome --web-port=8080
 ```
-*(Windows: bisa juga lewat `run_web.bat`)*
 
 #### 📱 Opsi B: Jalankan di Emulator Android / HP Fisik
-Pastikan emulator atau perangkat USB debugging sudah terhubung, lalu jalankan:
 ```bash
 flutter run
 ```
-*(Windows: bisa juga lewat `run_emulator.bat`)*
+
+### 4. Isi Data Demo (Development)
+Jalankan aplikasi dalam **debug mode**, lalu di halaman login tap tombol:
+```
+[DEV] Isi Data Dummy ke Firebase
+```
+Ini akan membuat semua akun demo di Firebase Auth & Firestore. Aman dijalankan berulang.
 
 ---
 
 ## 📂 Struktur Direktori
 
-Berikut adalah gambaran hierarki direktori utama proyek (kondisi saat ini):
-
 ```text
-gaskampusproject/               # package: gas_kampusapp
-├── pubspec.yaml                 # Konfigurasi dependensi & aset
-├── firebase.json                # Konfigurasi project Firebase (gas-kampus)
+gas_kampus/                       # package: gas_kampusapp
+├── pubspec.yaml                   # Konfigurasi dependensi & aset
+├── firebase.json                  # Konfigurasi project Firebase
+├── firestore.rules                # Firestore Security Rules (dev)
 ├── assets/
-│   └── images/                  # Aset gambar onboarding & ilustrasi
-├── lib/
-│   ├── main.dart                # Entry point aplikasi, init Firebase & tema
-│   ├── firebase_options.dart    # Konfigurasi Firebase per platform
-│   ├── models/                  # Model data (barrel: models.dart)
-│   │   ├── user_model.dart          # UserModel + DriverProfileModel
-│   │   ├── order_model.dart         # OrderModel, OrderStatus, PaymentMethod
-│   │   ├── schedule_model.dart      # Jadwal kuliah
-│   │   ├── wallet_model.dart        # Wallet + Transaction
-│   │   ├── review_model.dart, promo_model.dart, chat_model.dart,
-│   │   └── notification_model.dart, leaderboard_model.dart
-│   ├── services/
-│   │   └── admin_service.dart       # Query Firestore modul admin
-│   └── screens/
-│       ├── onboarding_screen.dart    # Halaman perkenalan awal aplikasi
-│       ├── login_screen.dart         # Halaman autentikasi multi-role
-│       ├── register_screen.dart      # Registrasi pengguna baru
-│       ├── wallet_screen.dart        # Detail dompet GasPay & riwayat
-│       ├── notifications_screen.dart # Notifikasi & pengumuman
-│       │
-│       ├── main_pages/               # Layar Mahasiswa (Pelanggan)
-│       │   ├── home_screen.dart          # Beranda (layanan, search, promo)
-│       │   ├── pesanan_screen.dart       # Cari driver, order aktif, riwayat
-│       │   ├── nearby_drivers_modal.dart # Radar driver terdekat
-│       │   ├── profile_screen.dart, settings_screen.dart
-│       │   ├── promo_screen.dart, chat_screen.dart
-│       │   ├── favorite_drivers_screen.dart
-│       │   └── topup_modal.dart          # Bottom sheet top-up saldo
-│       │
-│       ├── driver_pages/             # Layar Driver Mahasiswa
-│       │   ├── home/driver_home_screen.dart     # Dashboard & toggle online/offline
-│       │   ├── jadwal/driver_jadwal_screen.dart # Jadwal kuliah vs narik
-│       │   ├── profile/driver_profile_screen.dart
-│       │   └── orders/                          # Siklus pesanan driver
-│       │       ├── driver_orders_screen.dart
-│       │       ├── driver_navigation_screen.dart
-│       │       ├── driver_active_trip_screen.dart
-│       │       ├── driver_trip_complete_screen.dart
-│       │       └── driver_receipt_screen.dart
-│       │
-│       ├── driver_umum_pages/        # Layar Driver Umum (duplikat driver_pages — akan digabung)
-│       │
-│       ├── admin_pages/              # Layar Admin Kampus
-│       │   ├── admin_home_screen.dart
-│       │   ├── drivers/admin_drivers_screen.dart
-│       │   ├── orders/admin_orders_screen.dart
-│       │   ├── reports/admin_reports_screen.dart
-│       │   └── verification/driver_verification_screen.dart
-│       │
-│       └── chat/
-│           └── driver_chat_screen.dart
-└── functions/                   # (rencana) Cloud Functions: matching, tarif, dispatch
+│   └── images/                    # Aset gambar onboarding & ilustrasi
+└── lib/
+    ├── main.dart                  # Entry point aplikasi, init Firebase & tema
+    ├── firebase_options.dart      # Konfigurasi Firebase per platform
+    │
+    ├── models/                    # Model data (barrel: models.dart)
+    │   ├── user_model.dart            # UserModel + DriverProfileModel
+    │   ├── order_model.dart           # OrderModel, OrderStatus, PaymentMethod
+    │   ├── schedule_model.dart        # Jadwal kuliah
+    │   ├── wallet_model.dart          # WalletModel (balance + coins) + TransactionModel
+    │   ├── review_model.dart          # Rating dua arah
+    │   ├── promo_model.dart           # Voucher & promo
+    │   ├── chat_model.dart            # Pesan in-app
+    │   ├── notification_model.dart    # Notifikasi
+    │   ├── leaderboard_model.dart     # Papan peringkat driver
+    │   └── models.dart               # Barrel export semua model
+    │
+    ├── services/
+    │   ├── auth_services.dart         # AuthService: login (NIM/username/HP), register, logout, normalizeIdentifier
+    │   ├── seed_services.dart         # SeedService: isi 8 akun demo ke Firebase (safe re-run)
+    │   ├── admin_service.dart         # AdminService: query Firestore untuk dashboard admin
+    │   ├── wallet_service.dart        # WalletService: top-up, debit, mutasi transaksi GasPay
+    │   ├── trip_service.dart          # TripService: alur trip, bagi hasil, kalkulasi keuangan
+    │   ├── fare_pricing_service.dart  # FarePricingService: tier tarif, baca config dari Firestore
+    │   ├── document_service.dart      # DocumentService: simpan dokumen KTM/KTP/SIM/STNK
+    │   └── map_route_service.dart     # MapRouteService: peta, haversine, geolokasi
+    │
+    └── screens/
+        ├── onboarding_screen.dart     # 3 slide onboarding
+        ├── login_screen.dart          # Login: NIM / Username / No. HP + password
+        ├── register_screen.dart       # Registrasi pengguna baru
+        ├── wallet_screen.dart         # Detail dompet GasPay & riwayat transaksi
+        ├── notifications_screen.dart  # Notifikasi & pengumuman
+        │
+        ├── main_pages/                # Layar Mahasiswa (Pelanggan)
+        │   ├── home_screen.dart           # Beranda: salam dinamis, saldo realtime, driver aktif
+        │   ├── pesanan_screen.dart        # Cari driver, order aktif, riwayat
+        │   ├── service_order_screen.dart  # Form pesanan layanan (Makan, Titip, Antar)
+        │   ├── nearby_drivers_modal.dart  # Radar driver terdekat (hanya yang online)
+        │   ├── jadwal_kuliah_screen.dart  # Input & kelola jadwal kuliah mahasiswa
+        │   ├── profile_screen.dart        # Profil pengguna
+        │   ├── settings_screen.dart       # Pengaturan akun & aplikasi
+        │   ├── promo_screen.dart          # Voucher & promo aktif
+        │   ├── chat_screen.dart           # In-app chat dengan driver
+        │   ├── favorite_drivers_screen.dart # Daftar driver favorit
+        │   └── topup_modal.dart           # Bottom sheet top-up saldo GasPay
+        │
+        ├── driver_pages/              # Layar Driver Mahasiswa
+        │   ├── home/driver_home_screen.dart        # Dashboard & toggle online/offline
+        │   ├── jadwal/driver_jadwal_screen.dart    # Jadwal kuliah vs rekomendasi jam narik
+        │   ├── profile/driver_profile_screen.dart  # Profil & data kendaraan
+        │   └── orders/
+        │       ├── driver_orders_screen.dart        # Daftar & riwayat order
+        │       ├── driver_navigation_screen.dart    # Navigasi menuju titik jemput
+        │       ├── driver_active_trip_screen.dart   # Perjalanan aktif
+        │       ├── driver_trip_complete_screen.dart # Konfirmasi trip selesai
+        │       └── driver_receipt_screen.dart       # Struk digital
+        │
+        ├── driver_umum_pages/         # Layar Driver Umum (akan digabung dengan driver_pages)
+        │   ├── driver_umum_home_screen.dart
+        │   ├── driver_umum_profile_screen.dart
+        │   ├── jadwal/driver_umum_jadwal_screen.dart
+        │   └── orders/
+        │       ├── driver_umum_orders_screen.dart
+        │       ├── driver_umum_navigation_screen.dart
+        │       ├── driver_umum_active_trip_screen.dart
+        │       ├── driver_umum_trip_complete_screen.dart
+        │       └── driver_umum_receipt_screen.dart
+        │
+        ├── admin_pages/               # Layar Admin Kampus
+        │   ├── admin_home_screen.dart
+        │   ├── drivers/admin_drivers_screen.dart
+        │   ├── orders/admin_orders_screen.dart
+        │   ├── reports/admin_reports_screen.dart
+        │   ├── settings/admin_fare_settings_modal.dart  # Pengaturan tarif per tier
+        │   └── verification/driver_verification_screen.dart
+        │
+        └── chat/
+            └── driver_chat_screen.dart
 ```
 
 ---
 
 ## 🔑 Akun Demo & Panduan Penggunaan
 
-Aplikasi saat ini memakai akun bawaan (*hardcoded demo accounts*) untuk eksplorasi semua role. Akan diganti Firebase Auth di Fase 1.
+Jalankan fungsi **Seed Data** dari halaman login (tombol `[DEV] Isi Data Dummy ke Firebase`) untuk mengisi semua akun di bawah ini.
 
-| Role Pengguna | Username | Password | Akses Halaman |
-| :--- | :--- | :--- | :--- |
-| **Mahasiswa (Pelanggan)** | `mahasiswa` | `mahasiswa` | `lib/screens/main_pages/home_screen.dart` |
-| **Driver Mahasiswa** | `driverm` | `driverm` | `lib/screens/driver_pages/home/driver_home_screen.dart` |
-| **Driver Umum** | `driveru` | `driveru` | `lib/screens/driver_umum_pages/driver_umum_home_screen.dart` |
-| **Admin Kampus** | `admin` | `admin` | `lib/screens/admin_pages/admin_home_screen.dart` |
+### Akun Demo (password semua: `gaskampus123`)
+
+> Login bisa menggunakan **Username**, **NIM**, atau **Nomor HP**.
+
+#### 🎓 Mahasiswa (Pelanggan)
+
+| Username | NIM | Nomor HP | Nama | Saldo | GoCoin |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `mahasiswa` | `140610240001` | `081200000001` | Ahmad Zaki (FISIP) | Rp 75.000 | 3.500 |
+| `mahasiswa2` | `140610240010` | `081200000010` | Siti Nurhaliza (Teknik) | Rp 125.000 | 8.200 |
+| `mahasiswa3` | `140610240011` | `081200000011` | Rafi Alamsyah (FMIPA) | Rp 32.000 | 1.250 |
+
+#### 🛵 Driver Mahasiswa
+
+| Username | NIM | Nomor HP | Nama | Status | Saldo | GoCoin |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `driverm` | `140810230002` | `081200000002` | Budi Santoso (FMIPA) | 🟢 Online | Rp 210.000 | 500 |
+| `driverm2` | `140810230012` | `081200000012` | Siti Aminah (FEB) | 🟢 Online | Rp 165.000 | 750 |
+
+#### 🚗 Driver Umum
+
+| Username | Nomor HP | Nama | Status | Saldo | GoCoin |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `driveru` | `081200000003` | Agus Prabowo | 🟢 Online | Rp 340.000 | 300 |
+| `driveru2` | `081200000013` | Rizky Pratama | ⚫ Offline | Rp 85.000 | 100 |
+
+#### 🛡️ Admin
+
+| Username | Nama |
+| :--- | :--- |
+| `admin` | Admin Kampus |
 
 ### Alur Operasional Singkat:
-1. **Onboarding & Login:** 3 slide onboarding, lalu login/daftar sesuai role.
-2. **Isi Profil Mahasiswa:** titik asal default + jadwal kuliah (sistem membaca fakultas → zona).
-3. **Pemesanan (Mahasiswa):** pilih *Antar*, tentukan titik jemput & tujuan, lihat rentang tarif, lalu order.
-4. **Matching 3 Tier (Server):** sistem mencari driver searah (tier 1) → driver mahasiswa online (tier 2) → driver umum (tier 3), dan penumpang melihat status tier secara real-time.
-5. **Penerimaan Order (Driver):** driver menerima penawaran, navigasi ke titik jemput, "Saya Sudah Sampai", "Mulai Perjalanan", selesai.
-6. **Pembayaran & Evaluasi:** pembayaran via GasPay/QRIS/tunai, lalu rating dua arah.
+1. **Seed data** → tap `[DEV] Isi Data Dummy ke Firebase` di halaman login.
+2. **Login** menggunakan username, NIM, atau nomor HP + password `gaskampus123`.
+3. **Beranda mahasiswa** menampilkan salam dinamis sesuai waktu, saldo & GoCoin real-time, dan daftar driver yang sedang online.
+4. **Radar driver** (tap kartu "Lihat Driver Terdekat") menampilkan hanya driver online diurutkan dari terdekat.
 
 ---
 
 ## 🗺 Status Pengembangan & Roadmap
 
-### Status saat ini (Fase 0 — Prototipe UI)
-- ✅ UI lengkap 4 role & alur trip driver.
-- ✅ Model data dasar (`lib/models/`).
-- ✅ Admin home & admin drivers sudah membaca Firestore (`AdminService`).
-- ⚠️ Halaman lain masih data dummy; login masih hardcoded; register belum tersambung Firebase Auth.
-- ❌ Belum ada: input jadwal penumpang, sistem zona, matching 3 tier, tarif per tier, rekomendasi jam narik, peta/geolokasi, FCM.
+### Status saat ini (Fase 0 — Prototipe UI + Autentikasi Firebase)
+
+| Fitur | Status |
+| :--- | :--- |
+| UI lengkap 4 role & alur trip driver | ✅ |
+| Model data dasar (`lib/models/`) | ✅ |
+| Firebase Auth + sistem login NIM/Username/HP | ✅ |
+| Koleksi `login_index` di Firestore | ✅ |
+| Data seed 8 akun demo (safe re-run) | ✅ |
+| Saldo & GoCoin real-time dari Firestore (`wallets/{uid}`) | ✅ |
+| Nama user real-time dari Firestore (`users/{uid}`) | ✅ |
+| Salam beranda dinamis (Pagi/Siang/Sore/Malam) | ✅ |
+| Driver aktif hanya tampil jika `isOnline: true` | ✅ |
+| Service layer: `WalletService`, `TripService`, `FarePricingService`, `DocumentService`, `MapRouteService` | ✅ |
+| Firestore Security Rules (versi dev) | ✅ |
+| Input jadwal penumpang ke Firestore | ⚠️ UI ada, belum tersambung |
+| 6 zona A–F dari GeoJSON asset, seed ke Firestore (`ZoneService`) | ✅ |
+| `zoneOfPoint`, `zoneOfSchedule`, `evaluateTier` (pure functions, unit tested) | ✅ |
+| Wiring `evaluateTier` ke alur terima order (`trip_service.dart`) | ❌ TODO |
+| Cloud Functions matching 3 tier paralel (dispatch, tarif, timeout) | ❌ |
+| Cloud Functions (dispatch, tarif, timeout) | ❌ |
+| Peta tile (Google Maps style) di Beranda & Radar driver | ✅ |
+| GPS perangkat di Beranda (posisi mahasiswa realtime) | ✅ |
+| Lokasi driver di Radar: data statis (jarak estimasi haversine) | ✅ |
+| Tracking GPS driver live ke Firestore | ❌ |
+| FCM (notifikasi penawaran order) | ❌ |
 
 ### Fase 1 — MVP
-1. Firebase Auth (OTP) + registrasi mahasiswa (KTM, titik asal wajib) & driver.
-2. Revisi model sesuai [Rancangan Model Data](#-rancangan-model-data).
-3. Input jadwal kuliah untuk semua mahasiswa + pemetaan fakultas → zona.
-4. Order *Antar* + Cloud Functions matching 3 tier paralel + status tier real-time.
-5. Tarif per tier di server + rentang tarif sebelum order.
-6. Peta, tracking lokasi live, geohash driver.
-7. Rekomendasi jam narik di Driver Home & Jadwal.
-8. GasPay, rating dua arah, verifikasi driver oleh admin terhubung Firestore.
+1. Firebase Auth OTP + registrasi mahasiswa (KTM, titik asal wajib) & driver.
+2. Input jadwal kuliah untuk semua mahasiswa + pemetaan fakultas → zona.
+3. Order *Antar* + Cloud Functions matching 3 tier paralel + status tier real-time.
+4. Tarif per tier di server + rentang tarif sebelum order.
+5. Peta, tracking lokasi live, geohash driver.
+6. Rekomendasi jam narik di Driver Home & Jadwal.
+7. Rating dua arah, verifikasi driver oleh admin terhubung Firestore.
 
 ### Fase 2 — Setelah MVP
-- **Booking Searah** (pesan dari malam sebelumnya / pagi hari) supaya tier 1 lebih sering terjadi.
-- Rekomendasi jam narik berbasis data permintaan.
+- **Booking Searah** (pesan dari malam sebelumnya / pagi hari).
+- Rekomendasi jam narik berbasis data permintaan historis.
 - Verifikasi email kampus **[menunggu keputusan]**.
 - Layanan Makan, Titip/Beliin, Laundry.
 
-### Utang teknis
-- [ ] **Hapus nama merek Gojek dari kode** (nama aplikasi tetap GasKampus, tapi di kode masih tersisa): teks "Gojek Kampus" di `login_screen`, `register_screen`, `pesanan_screen`, `chat_screen`, `driver_receipt_screen`; "Goride/Gocar" di `pesanan_screen` & `promo_screen`; "GoPay Campus/GoCoin/GoPay" di `home_screen`, `topup_modal`, `wallet_screen`, `pesanan_screen`; konstanta warna `GojekGreen/GojekNeon` di layar trip driver; `PaymentMethod.gopay` di `order_model.dart`. Ganti ke GasRide / GasPay / Koin Kampus.
+### Utang Teknis
+- [ ] **Logika zona & tarif tier berjalan di client** — `evaluateTier`, `zoneOfPoint`, `applyTierMultiplier` saat ini di Flutter client, belum dipindah ke Cloud Functions. Rawan manipulasi sebelum production.
+- [ ] **Wiring `evaluateTier` ke alur terima order** — field `matchTier` & `fareFinal` sudah ada di `OrderModel`, tapi pengisian saat driver menerima order di `trip_service.dart` belum dikerjakan.
+- [ ] **Tier 1 hanya untuk jendela BERANGKAT** — saat ini `evaluateTier` hanya mengecek kelas di depan ≤ 30 menit (tujuan di dalam zona kampus). Jendela PULANG belum didukung karena titik tujuan (kos/rumah) berada di luar zona kampus.
+- [ ] **Zona driver diambil dari profil (`facultas`/`jurusan`)** — ditentukan lewat `zoneOfUser(driver.facultas, driver.jurusan)`. Jika driver mengambil kelas lintas fakultas di luar zona profilnya sendiri, belum terdeteksi.
+- [ ] **Form profil/registrasi: wajib pilih jurusan jika Fakultas Teknik** — field `jurusan` sudah ada di `UserModel`, validasi UI belum dikerjakan.
+- [ ] **`register_screen.dart` wajib memakai dropdown kode fakultas & jurusan** (bukan input teks bebas), karena `facultas` dan `jurusan` di `UserModel` sekarang disimpan sebagai kode tetap (`FK`, `FT`, `FMIPA`, `SIPIL`, `ELEKTRO`, dst.).
+- [ ] **Hapus nama merek Gojek dari kode** — ganti ke GasRide / GasPay / Koin Kampus (tersisa di: `login_screen`, `register_screen`, `pesanan_screen`, `chat_screen`, `driver_receipt_screen`, `home_screen`, `topup_modal`, `wallet_screen`, `order_model.dart`).
 - [ ] Gabungkan `driver_pages` dan `driver_umum_pages` menjadi satu modul dengan parameter `driverType`.
-- [ ] Hapus `FirestoreTestPage` di `main.dart` setelah tes selesai.
-- [ ] Ganti `withOpacity` (deprecated) → `withValues` (lihat `analyze.txt`).
+- [ ] Hapus `FirestoreTestPage` di `main.dart` setelah tes selesai (`kTestFirestore = false` sudah diset, tinggal hapus class-nya).
+- [ ] Ganti `withOpacity` (deprecated) → `withValues`.
+- [ ] Hubungkan `register_screen.dart` ke `AuthService.register(...)`.
+- [ ] Perketat Firestore Security Rules sebelum production.
+- [ ] Buat Firestore Composite Index: collection `users`, field `role` (asc) + `isOnline` (asc) — dibutuhkan untuk query Driver Aktif di Beranda.
+- [ ] **Fix JAVA_HOME di Windows** jika build Android gagal: set env var `JAVA_HOME` ke `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot` (bukan jdk-17 yang sudah tidak ada), lalu restart IDE.
 
 ---
 
 ## 🤝 Kontribusi
 
-Kontribusi dari seluruh pengembang sangat kami apresiasi! Jika Anda ingin berkontribusi:
+Kontribusi dari seluruh pengembang sangat kami apresiasi!
 
 1. **Fork** repositori ini.
 2. Buat branch fitur baru:

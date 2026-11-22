@@ -167,4 +167,14 @@ class FarePricingService {
   static Future<void> resetToDefault() async {
     await saveFareTiers(defaultTiers);
   }
+
+  /// Terapkan pengali tier ke tarif dasar.
+  /// Tier 1 = multiplier dari config/pricing (default 0.70), tier 2 & 3 = tarif penuh.
+  static int applyTierMultiplier(int baseFare, int tier, {double? customMultiplier}) {
+    if (tier == 1) {
+      final m = customMultiplier ?? 0.70;
+      return (baseFare * m / 1000).round() * 1000; // Bulatkan ke ribuan
+    }
+    return baseFare;
+  }
 }

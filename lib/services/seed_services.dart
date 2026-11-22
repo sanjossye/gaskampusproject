@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 import 'auth_services.dart';
 
 /// Mengisi data dummy ke Firebase (Auth + Firestore). Hanya untuk development.
@@ -39,7 +40,8 @@ class SeedService {
       'role': 'mahasiswa',
       'nim': '140610240010',
       'phone': '081200000010',
-      'facultas': 'Fakultas Teknik',
+      'facultas': 'FT',
+      'jurusan': 'KIMIA', // Zona B
       'isVerified': true,
       'walletBalance': 125000,
       'walletCoins': 8200,
@@ -78,9 +80,13 @@ class SeedService {
         'isOnline': true,
       },
       'schedules': [
-        {'courseName': 'Kalkulus II', 'room': 'R.302', 'building': 'Gedung C', 'dayOfWeek': 1, 'startTime': '08:00', 'endTime': '10:00'},
-        {'courseName': 'Fisika Dasar', 'room': 'R.204', 'building': 'Gedung B', 'dayOfWeek': 1, 'startTime': '13:00', 'endTime': '15:00'},
-        {'courseName': 'Algoritma Pemrograman', 'room': 'Lab Kom 2', 'building': 'Gedung D', 'dayOfWeek': 3, 'startTime': '10:00', 'endTime': '12:00', 'courseType': 'praktikum'},
+        // Senin–Jumat (1..5) di Zona D (FMIPA) dengan 4 jam mulai per hari
+        for (int day = 1; day <= 5; day++) ...[
+          {'courseName': 'Kalkulus II', 'room': 'R.101', 'building': 'Gedung FMIPA', 'dayOfWeek': day, 'startTime': '08:00', 'endTime': '09:40'},
+          {'courseName': 'Fisika Dasar', 'room': 'R.204', 'building': 'Gedung FMIPA', 'dayOfWeek': day, 'startTime': '10:00', 'endTime': '11:40'},
+          {'courseName': 'Statistika Matematika', 'room': 'R.302', 'building': 'Gedung FMIPA', 'dayOfWeek': day, 'startTime': '13:00', 'endTime': '14:40'},
+          {'courseName': 'Praktikum Komputasi', 'room': 'Lab FMIPA 2', 'building': 'Gedung FMIPA', 'dayOfWeek': day, 'startTime': '15:30', 'endTime': '17:10', 'courseType': 'praktikum'},
+        ],
       ],
     },
     {
@@ -103,8 +109,13 @@ class SeedService {
         'isOnline': true,
       },
       'schedules': [
-        {'courseName': 'Ekonomi Mikro', 'room': 'R.101', 'building': 'Gedung A', 'dayOfWeek': 2, 'startTime': '08:00', 'endTime': '10:00'},
-        {'courseName': 'Akuntansi Dasar', 'room': 'R.205', 'building': 'Gedung B', 'dayOfWeek': 4, 'startTime': '10:00', 'endTime': '12:00'},
+        // Senin–Jumat (1..5) di Zona F (FEB) dengan 4 jam mulai per hari
+        for (int day = 1; day <= 5; day++) ...[
+          {'courseName': 'Ekonomi Mikro', 'room': 'R.101', 'building': 'Gedung FEB', 'dayOfWeek': day, 'startTime': '08:00', 'endTime': '09:40'},
+          {'courseName': 'Akuntansi Dasar', 'room': 'R.205', 'building': 'Gedung FEB', 'dayOfWeek': day, 'startTime': '10:00', 'endTime': '11:40'},
+          {'courseName': 'Manajemen Keuangan', 'room': 'R.301', 'building': 'Gedung FEB', 'dayOfWeek': day, 'startTime': '13:00', 'endTime': '14:40'},
+          {'courseName': 'Ekonomi Makro', 'room': 'R.104', 'building': 'Gedung FEB', 'dayOfWeek': day, 'startTime': '15:30', 'endTime': '17:10'},
+        ],
       ],
     },
 
@@ -215,6 +226,7 @@ class SeedService {
         'photoUrl': null,
         'role': u['role'],
         'facultas': u['facultas'],
+        'jurusan': u['jurusan'],
         'isVerified': u['isVerified'] ?? false,
         'isActive': true,
         'isOnline': isOnline,
@@ -386,6 +398,94 @@ class SeedService {
       log.add('Firestore diisi: users/$uid (${u['role']})');
       await _auth.signOut();
     }
+
+    // ── Seed Zona (dijalankan setelah user terakhir masih signed in,
+    //    sebelum signOut akhir, agar rules dev terpenuhi) ───────────────────
+    // Catatan: loop di atas sudah signOut setiap iterasi, jadi kita sign in
+    // kembali dengan akun pertama untuk punya request.auth != null.
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: _demoUsers.first['email'] as String,
+        password: demoPassword,
+      );
+      await seedZones();
+      await _auth.signOut();
+      log.add('Zona seeder: 6 zona (A–F) ditulis ke Firestore');
+    } catch (e) {
+      log.add('Zona seeder gagal: $e');
+    }
+
     return log;
+  }
+
+  /// Tulis 6 zona USU dari asset GeoJSON ke Firestore `zones/{id}`.
+  /// Aman dijalankan berulang (merge). Butuh request.auth != null.
+  Future<void> seedZones() async {
+    final zones = await ZoneService.parseGeoJsonAsset();
+    for (final z in zones) {
+      await _db.collection('zones').doc(z.id).set(z.toMap(), SetOptions(merge: true));
+    }
+  }
+
+  /// Buat 1 jadwal kuliah HARI INI (termasuk Sabtu/Minggu) untuk `driverm` & `driverm2`
+  /// dengan jam mulai = sekarang + 20 menit (durasi 100 menit).
+  /// Memakai doc id tetap `demo_relative` agar menimpa jika dijalankan ulang.
+  Future<String> seedRelativeDemoSchedule({DateTime? nowOverride}) async {
+    final now = nowOverride ?? DateTime.now();
+    final startDt = DateTime(now.year, now.month, now.day, now.hour, now.minute)
+        .add(const Duration(minutes: 20));
+    final endDt = startDt.add(const Duration(minutes: 100));
+
+    String fmtHm(DateTime dt) =>
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+    final startTime = fmtHm(startDt);
+    final endTime = fmtHm(endDt);
+    final dayOfWeek = startDt.weekday; // 1=Senin .. 7=Minggu
+    final isoNow = now.toIso8601String();
+
+    final targets = [
+      {
+        'username': 'driverm',
+        'email': 'driverm.demo@gaskampus-dev.com',
+        'courseName': 'Kelas Demo Searah (FMIPA)',
+        'room': 'R.101',
+        'building': 'Gedung FMIPA',
+      },
+      {
+        'username': 'driverm2',
+        'email': 'driverm2.demo@gaskampus-dev.com',
+        'courseName': 'Kelas Demo Searah (FEB)',
+        'room': 'R.101',
+        'building': 'Gedung FEB',
+      },
+    ];
+
+    for (final t in targets) {
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: t['email']!,
+        password: demoPassword,
+      );
+      final uid = cred.user!.uid;
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('schedules')
+          .doc('demo_relative')
+          .set({
+        'userId': uid,
+        'courseName': t['courseName'],
+        'courseType': 'regular',
+        'room': t['room'],
+        'building': t['building'],
+        'dayOfWeek': dayOfWeek,
+        'startTime': startTime,
+        'endTime': endTime,
+        'createdAt': isoNow,
+      });
+      await _auth.signOut();
+    }
+
+    return 'Jadwal demo hari ini (hari ke-$dayOfWeek) diset: $startTime - $endTime untuk driverm & driverm2.';
   }
 }

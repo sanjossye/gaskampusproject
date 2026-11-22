@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 import 'package:flutter/material.dart';
 import '../../main.dart';
 
@@ -65,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _name = (data['name'] as String?) ?? '';
           _nim = (data['nim'] as String?) ?? '';
-          _prodi = (data['facultas'] as String?) ?? '';
+          _prodi = facultyDisplayName(data['facultas'] as String?, fallback: '');
           _phone = _formatPhone(data['phone'] as String?);
           _email = (data['email'] as String?) ?? '';
           _ktmUrl = (data['ktmUrl'] as String?)?.trim();

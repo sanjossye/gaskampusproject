@@ -334,17 +334,30 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleSeed() async {
     setState(() => _loading = true);
     try {
-      final log = await SeedService().seedDemoAccounts();
+      final log = await SeedService().seedDemoAccounts(); // includes seedZones()
       debugPrint(log.join('\n'));
       _showSnack(
         'Data dummy siap.\n'
         'Mahasiswa: mahasiswa, mahasiswa2, mahasiswa3\n'
         'Driver: driverm, driverm2, driveru, driveru2\n'
-        'Admin: admin | Pass: ${SeedService.demoPassword}',
+        'Admin: admin | Pass: ${SeedService.demoPassword}\n'
+        '6 zona USU (A–F) ditulis ke Firestore.',
         Colors.green,
       );
     } catch (e) {
       _showSnack('Seed gagal: ${AuthService.readableError(e)}', Colors.red);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleRelativeScheduleSeed() async {
+    setState(() => _loading = true);
+    try {
+      final msg = await SeedService().seedRelativeDemoSchedule();
+      _showSnack(msg, Colors.green);
+    } catch (e) {
+      _showSnack('Gagal set jadwal relatif: ${AuthService.readableError(e)}', Colors.red);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -358,12 +371,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildSeedButton() {
-    return Center(
-      child: TextButton.icon(
-        onPressed: _loading ? null : _handleSeed,
-        icon: const Icon(Icons.dataset_outlined, size: 18),
-        label: const Text('[DEV] Isi Data Dummy ke Firebase'),
-      ),
+    return Column(
+      children: [
+        Center(
+          child: TextButton.icon(
+            onPressed: _loading ? null : _handleSeed,
+            icon: const Icon(Icons.dataset_outlined, size: 18),
+            label: const Text('[DEV] Isi Data Dummy ke Firebase'),
+          ),
+        ),
+        Center(
+          child: TextButton.icon(
+            onPressed: _loading ? null : _handleRelativeScheduleSeed,
+            icon: const Icon(Icons.schedule_outlined, size: 18),
+            label: const Text('[DEV] Jadwal demo: kelas 20 menit lagi'),
+          ),
+        ),
+      ],
     );
   }
 

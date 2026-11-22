@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
+import 'package:gas_kampusapp/services/zone_service.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart' as pesanan;
 import 'profile_screen.dart';
@@ -123,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen>
                   }
                   if (data['facultas'] != null &&
                       (data['facultas'] as String).isNotEmpty) {
-                    _userFaculty = data['facultas'] as String;
+                    _userFaculty = facultyDisplayName(data['facultas'] as String);
                   }
                 });
               }
@@ -849,7 +850,6 @@ class _HomeScreenState extends State<HomeScreen>
   // 6. Interactive Live Map Card (Google Maps Tiles + Zona Kampus + Driver Pin)
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildMapCard(Color tp, Color ts, bool isDark, Color border) {
-    final zones = MapRouteService.getCampusZones();
     final sampleDrivers = const [
       {'name': 'Budi S.', 'pos': LatLng(3.5612, 98.6540)},
       {'name': 'Siti A.', 'pos': LatLng(3.5655, 98.6565)},
@@ -960,7 +960,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Radar Kampus Aktif · ${zones.length} Zona USU',
+                          'Radar Kampus Aktif · USU Medan',
                           style: _body(Colors.white, 10.5, FontWeight.bold),
                         ),
                       ],
@@ -1002,45 +1002,14 @@ class _HomeScreenState extends State<HomeScreen>
             child: Row(
               children: [
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: zones.map((z) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: InkWell(
-                            onTap: () {
-                              if (_isHomeMapReady) {
-                                _homeMapController.move(z.center, 15.6);
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(99),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: z.color.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(99),
-                                border: Border.all(
-                                  color: z.color.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              child: Text(
-                                z.id,
-                                style: TextStyle(
-                                  color: tp,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                  child: Text(
+                    'Kampus USU · Padang Bulan, Medan',
+                    style: TextStyle(
+                      color: ts,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
