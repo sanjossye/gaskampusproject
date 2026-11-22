@@ -1,4 +1,4 @@
-figma : https://www.figma.com/design/odbPrUoxjrig8qauAUHQTc/Project-Gas-Kampus?node-id=0-1&t=Xwcs1SiIAHW5Vfdy-1
+﻿figma : https://www.figma.com/design/odbPrUoxjrig8qauAUHQTc/Project-Gas-Kampus?node-id=0-1&t=Xwcs1SiIAHW5Vfdy-1
 # 🚀 GasKampus (GasKam)
 
 <p align="center">
@@ -160,14 +160,16 @@ Kampus dibagi menjadi **6 zona: A, B, C, D, E, F**. Setiap zona berisi beberapa 
 
 | Zona | Tempat |
 | :---: | :--- |
-| **A** | Fak. Kedokteran, Sekretariat BEM, Gelanggang Mahasiswa, Fasilkom-TI, Fak. Ilmu Budaya, Fak. Kedokteran Gigi, Gedung Pancasila |
+| **A** | Fak. Kedokteran (FK), Sekretariat BEM, Gelanggang Mahasiswa, Fasilkom-TI, Fak. Ilmu Budaya (FIB), Fak. Kedokteran Gigi (FKG), Gedung Pancasila, Fak. Kesehatan Masyarakat (FKM), Fak. Keperawatan (FKep) |
 | **B** | Fak. Teknik (Arsitektur, Sipil, Kimia, Lingkungan), Aula Teknik, Perpustakaan USU, Fak. Psikologi, Magister Kenotariatan, Magister Manajemen |
 | **C** | Politeknik Negeri Medan |
-| **D** | Fak. Teknik (Elektro, Mesin, Industri), FMIPA |
-| **E** | Fak. Vokasi, Fak. Pertanian |
-| **F** | FISIP, Fak. Ekonomi dan Bisnis |
-
-> ⚠️ **Catatan:** Fakultas Teknik **terbelah dua zona**: Zona B (Arsitektur, Sipil, Kimia, Lingkungan) dan Zona D (Elektro, Mesin, Industri). Penentu zona adalah **jurusan**, bukan nama fakultas. Field `jurusan` (nullable) tersedia di `UserModel` — wajib diisi jika fakultas = Teknik.
+| **D** | Fak. Teknik (Elektro, Mesin, Industri), FMIPA, Fak. Farmasi (FF) |
+| **E** | Fak. Vokasi, Fak. Pertanian (FP) |
+| **F** | FISIP, Fak. Ekonomi dan Bisnis (FEB), Fak. Hukum (FH) |
+1
+> ⚠️ **Catatan:**
+> - **Fakultas Teknik** **terbelah dua zona**: Zona B (Arsitektur, Sipil, Kimia, Lingkungan) dan Zona D (Elektro, Mesin, Industri). Penentu zona adalah **jurusan**, bukan nama fakultas. Field `jurusan` (nullable) tersedia di `UserModel` — wajib diisi jika fakultas = Teknik.
+> - **Fakultas Kehutanan** sengaja **tidak memiliki zona** di kampus Padang Bulan (lokasi kampus terpisah jauh, `zoneOfUser` → `null`). Fakultas ini tetap tersedia di dropdown registrasi agar mahasiswanya tetap dapat memesan layanan.
 
 **Patokan one-way bukan kelas yang sama**, melainkan **zona yang sama + jam yang berdekatan**.
 
@@ -262,10 +264,10 @@ tarifTier  = tarifDasar × pengaliTier
 tarifFinal = tarifTier − diskonPromo
 ```
 
-| Tier | Pengali *(contoh, disimpan di `config/pricing`)* |
+| Tier | Pengali *(disimpan di `distance_fare/pricing_rules`)* |
 | :---: | :---: |
-| 1 — Searah | 0,70 |
-| 2 — Mahasiswa online | 0,85 |
+| 1 — Searah (khusus `GasRide`) | 0,70 |
+| 2 — Mahasiswa online | 1,00 |
 | 3 — Driver umum | 1,00 |
 
 ### 9. Siklus Status Trip
@@ -308,7 +310,7 @@ stateDiagram-v2
 - Verifikasi pendaftar driver (KTM/KTP, SIM, STNK): setujui atau tolak.
 - Suspend/aktifkan driver (`isActive`).
 - Monitoring order real-time & laporan.
-- Kelola **pemetaan fakultas → zona**, parameter tarif (`config/pricing`), dan parameter dispatch (`config/dispatch`).
+- Kelola **pemetaan fakultas → zona**, parameter tarif (`distance_fare/pricing_rules`), dan parameter dispatch (`config/dispatch`).
 - Kelola promo/voucher.
 
 ---
@@ -349,7 +351,7 @@ flowchart LR
 | `NotificationModel` | — | Notifikasi push & in-app |
 | `LeaderboardModel` | — | Papan peringkat driver |
 | `login_index/{identifier}` | `login_index` | Indeks login: `{ email, uid, type: "nim"\|"username"\|"phone" }` |
-| `config/pricing`, `config/dispatch` | `config` | Parameter tarif & dispatch yang bisa diubah admin |
+| `distance_fare/pricing_rules`, `config/dispatch` | `distance_fare`, `config` | Parameter tarif (harga 1 km, 10 tier jarak, `tier1Multiplier`) & dispatch yang bisa diubah admin |
 
 ---
 
@@ -694,10 +696,11 @@ Jalankan fungsi **Seed Data** dari halaman login (tombol `[DEV] Isi Data Dummy k
 ### Utang Teknis
 - [ ] **Logika zona & tarif tier berjalan di client** — `evaluateTier`, `zoneOfPoint`, `applyTierMultiplier` saat ini di Flutter client, belum dipindah ke Cloud Functions. Rawan manipulasi sebelum production.
 - [ ] **Wiring `evaluateTier` ke alur terima order** — field `matchTier` & `fareFinal` sudah ada di `OrderModel`, tapi pengisian saat driver menerima order di `trip_service.dart` belum dikerjakan.
+- [ ] **Tier 1 hanya berlaku untuk `GasRide` (motor)** — pesanan `GasCar` (mobil) tidak mendapatkan promo Tier 1 searah.
+- [ ] **Backup tarif di `announcements/fare_pricing_config` sebaiknya dipindah** dari koleksi `announcements` ke koleksi konfigurasi khusus agar tidak bercampur dengan data pengumuman.
 - [ ] **Tier 1 hanya untuk jendela BERANGKAT** — saat ini `evaluateTier` hanya mengecek kelas di depan ≤ 30 menit (tujuan di dalam zona kampus). Jendela PULANG belum didukung karena titik tujuan (kos/rumah) berada di luar zona kampus.
 - [ ] **Zona driver diambil dari profil (`facultas`/`jurusan`)** — ditentukan lewat `zoneOfUser(driver.facultas, driver.jurusan)`. Jika driver mengambil kelas lintas fakultas di luar zona profilnya sendiri, belum terdeteksi.
-- [ ] **Form profil/registrasi: wajib pilih jurusan jika Fakultas Teknik** — field `jurusan` sudah ada di `UserModel`, validasi UI belum dikerjakan.
-- [ ] **`register_screen.dart` wajib memakai dropdown kode fakultas & jurusan** (bukan input teks bebas), karena `facultas` dan `jurusan` di `UserModel` sekarang disimpan sebagai kode tetap (`FK`, `FT`, `FMIPA`, `SIPIL`, `ELEKTRO`, dst.).
+- [ ] **`register_screen.dart` menyimpan label dropdown fakultas** — saat ini sudah didukung penuh oleh `_facultyAliases` + dropdown jurusan wajib jika Fakultas Teknik, namun ke depan sebaiknya dropdown langsung menyimpan kode tetap (`FK`, `FT`, `FMIPA`, `SIPIL`, `ELEKTRO`, dst.).
 - [ ] **Hapus nama merek Gojek dari kode** — ganti ke GasRide / GasPay / Koin Kampus (tersisa di: `login_screen`, `register_screen`, `pesanan_screen`, `chat_screen`, `driver_receipt_screen`, `home_screen`, `topup_modal`, `wallet_screen`, `order_model.dart`).
 - [ ] Gabungkan `driver_pages` dan `driver_umum_pages` menjadi satu modul dengan parameter `driverType`.
 - [ ] Hapus `FirestoreTestPage` di `main.dart` setelah tes selesai (`kTestFirestore = false` sudah diset, tinggal hapus class-nya).

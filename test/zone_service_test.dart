@@ -4,6 +4,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:gas_kampusapp/services/fare_pricing_service.dart';
 import 'package:gas_kampusapp/services/zone_service.dart';
 
 // ── Polygon dari geojson.json (LatLng = dibalik dari [lng, lat]) ──────────
@@ -255,10 +256,34 @@ void main() {
     test('Teknik + Teknik Elektro → D', () => expect(zoneOfUser('Fakultas Teknik', 'Teknik Elektro'), 'D'));
     test('Teknik + Teknik Kimia → B', () => expect(zoneOfUser('Fakultas Teknik', 'Teknik Kimia'), 'B'));
     test('Teknik + jurusan null → null', () => expect(zoneOfUser('Fakultas Teknik', null), isNull));
+    test('FH (Fakultas Hukum) → F', () {
+      expect(normalizeFaculty('FH'), 'FH');
+      expect(normalizeFaculty('Fakultas Hukum (FH)'), 'FH');
+      expect(zoneOfUser('Fakultas Hukum (FH)', null), 'F');
+    });
+    test('FF (Fakultas Farmasi) → D', () {
+      expect(normalizeFaculty('FF'), 'FF');
+      expect(normalizeFaculty('Fakultas Farmasi (FF)'), 'FF');
+      expect(zoneOfUser('Fakultas Farmasi (FF)', null), 'D');
+    });
+    test('FKM (Fakultas Kesehatan Masyarakat) → A', () {
+      expect(normalizeFaculty('FKM'), 'FKM');
+      expect(normalizeFaculty('Fakultas Kesehatan Masyarakat (FKM)'), 'FKM');
+      expect(zoneOfUser('Fakultas Kesehatan Masyarakat (FKM)', null), 'A');
+    });
+    test('FKep (Fakultas Keperawatan) → A', () {
+      expect(normalizeFaculty('FKep'), 'FKEP');
+      expect(normalizeFaculty('Fakultas Keperawatan (FKep)'), 'FKEP');
+      expect(zoneOfUser('Fakultas Keperawatan (FKep)', null), 'A');
+    });
+    test('Fakultas Kehutanan → FHUT tetapi zoneOfUser tetap null (kampus terpisah)', () {
+      expect(normalizeFaculty('Fakultas Kehutanan'), 'FHUT');
+      expect(zoneOfUser('Fakultas Kehutanan', null), isNull);
+    });
     test('teks acak / tidak dikenal → null', () {
-      expect(normalizeFaculty('Hukum'), isNull);
+      expect(normalizeFaculty('Fakultas Kedirgantaraan'), isNull);
       expect(normalizeFaculty('Teknik Informatika Liar'), isNull);
-      expect(zoneOfUser('Hukum', null), isNull);
+      expect(zoneOfUser('Fakultas Kedirgantaraan', null), isNull);
     });
   });
 
@@ -361,6 +386,51 @@ void main() {
         zones: _allZones,
       );
       expect(tier, 3);
+    });
+
+    test('bukan tier 1 jika serviceType GasCar meskipun semua syarat lain lolos', () {
+      final tier = evaluateTier(
+        driverRole: 'driver_kampus',
+        driverIsOnline: true,
+        driverFacultas: 'FMIPA',
+        driverJurusan: null,
+        driverSchedulesToday: schedules,
+        pickup: pickup,
+        destination: destZoneD,
+        driverPosition: driverPos,
+        now: now,
+        zones: _allZones,
+        serviceType: 'GasCar',
+      );
+      expect(tier, 2);
+    });
+  });
+
+  // ── FarePricingService.applyTierMultiplier ─────────────────────────────────
+
+  group('FarePricingService.applyTierMultiplier', () {
+    test('tier 1: 5000 → 3500 (default 0.70)', () {
+      expect(FarePricingService.applyTierMultiplier(5000, 1), 3500);
+    });
+
+    test('tier 1: 7000 → 5000 (4900 dibulatkan ke kelipatan Rp 500)', () {
+      expect(FarePricingService.applyTierMultiplier(7000, 1), 5000);
+    });
+
+    test('tier 2 dan tier 3 → tarif tidak berubah', () {
+      expect(FarePricingService.applyTierMultiplier(7000, 2), 7000);
+      expect(FarePricingService.applyTierMultiplier(7000, 3), 7000);
+    });
+
+    test('customMultiplier terbaca dengan benar', () {
+      expect(
+        FarePricingService.applyTierMultiplier(10000, 1, customMultiplier: 0.80),
+        8000,
+      );
+      expect(
+        FarePricingService.applyTierMultiplier(7000, 1, customMultiplier: 0.50),
+        3500,
+      );
     });
   });
 

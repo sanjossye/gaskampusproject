@@ -80,13 +80,18 @@ const Map<String, String> kFacultyNames = {
   'FKG': 'Fakultas Kedokteran Gigi',
   'FASILKOMTI': 'Fakultas Ilmu Komputer dan Teknologi Informasi',
   'FIB': 'Fakultas Ilmu Budaya',
+  'FKM': 'Fakultas Kesehatan Masyarakat',
+  'FKEP': 'Fakultas Keperawatan',
   'FT': 'Fakultas Teknik',
   'PSIKOLOGI': 'Fakultas Psikologi',
   'FMIPA': 'Fakultas Matematika dan Ilmu Pengetahuan Alam',
+  'FF': 'Fakultas Farmasi',
   'VOKASI': 'Fakultas Vokasi',
   'FP': 'Fakultas Pertanian',
   'FISIP': 'Fakultas Ilmu Sosial dan Ilmu Politik',
   'FEB': 'Fakultas Ekonomi dan Bisnis',
+  'FH': 'Fakultas Hukum',
+  'FHUT': 'Fakultas Kehutanan',
   'MKN': 'Magister Kenotariatan',
   'MM': 'Magister Manajemen',
   'POLMED': 'Politeknik Negeri Medan',
@@ -104,12 +109,15 @@ const Map<String, String> kTeknikMajorNames = {
 };
 
 /// Pemetaan kode fakultas (non-FT) ke ID Zona (A–F).
+/// Catatan: FHUT (Fakultas Kehutanan) sengaja tidak dipetakan ke zona kampus Padang Bulan (return null).
 const Map<String, String> _facultyCodeToZone = {
   // Zona A
   'FK': 'A',
   'FKG': 'A',
   'FASILKOMTI': 'A',
   'FIB': 'A',
+  'FKM': 'A',
+  'FKEP': 'A',
   // Zona B
   'PSIKOLOGI': 'B',
   'MKN': 'B',
@@ -118,12 +126,14 @@ const Map<String, String> _facultyCodeToZone = {
   'POLMED': 'C',
   // Zona D
   'FMIPA': 'D',
+  'FF': 'D',
   // Zona E
   'VOKASI': 'E',
   'FP': 'E',
   // Zona F
   'FISIP': 'F',
   'FEB': 'F',
+  'FH': 'F',
 };
 
 /// Pemetaan kode jurusan Teknik (FT) ke ID Zona (B atau D).
@@ -202,6 +212,31 @@ const Map<String, String> _facultyAliases = {
   'fakultas ekonomi dan bisnis': 'FEB',
   'fakultas ekonomi dan bisnis (feb)': 'FEB',
   'ekonomi dan bisnis': 'FEB',
+  // FH
+  'fh': 'FH',
+  'fakultas hukum': 'FH',
+  'fakultas hukum (fh)': 'FH',
+  'hukum': 'FH',
+  // FF
+  'ff': 'FF',
+  'fakultas farmasi': 'FF',
+  'fakultas farmasi (ff)': 'FF',
+  'farmasi': 'FF',
+  // FKM
+  'fkm': 'FKM',
+  'fakultas kesehatan masyarakat': 'FKM',
+  'fakultas kesehatan masyarakat (fkm)': 'FKM',
+  'kesehatan masyarakat': 'FKM',
+  // FKEP
+  'fkep': 'FKEP',
+  'fakultas keperawatan': 'FKEP',
+  'fakultas keperawatan (fkep)': 'FKEP',
+  'keperawatan': 'FKEP',
+  // FHUT (Kampus terpisah -> zoneOfUser return null)
+  'fhut': 'FHUT',
+  'fakultas kehutanan': 'FHUT',
+  'fakultas kehutanan (fhut)': 'FHUT',
+  'kehutanan': 'FHUT',
   // MKN
   'mkn': 'MKN',
   'magister kenotariatan': 'MKN',
@@ -270,6 +305,8 @@ const Map<String, String> _placeToZone = {
   'Fakultas Ilmu Budaya': 'A',
   'Fakultas Kedokteran Gigi': 'A',
   'Gedung Pancasila': 'A',
+  'Fakultas Kesehatan Masyarakat': 'A',
+  'Fakultas Keperawatan': 'A',
   // B
   'Teknik Arsitektur': 'B',
   'Teknik Sipil': 'B',
@@ -287,6 +324,7 @@ const Map<String, String> _placeToZone = {
   'Teknik Mesin': 'D',
   'Teknik Industri': 'D',
   'FMIPA': 'D',
+  'Fakultas Farmasi': 'D',
   // E
   'Fakultas Vokasi': 'E',
   'Fakultas Pertanian': 'E',
@@ -294,6 +332,7 @@ const Map<String, String> _placeToZone = {
   'FISIP': 'F',
   'Fakultas Ekonomi dan Bisnis': 'F',
   'FEB': 'F',
+  'Fakultas Hukum': 'F',
 };
 
 /// Places list per zona, untuk disimpan ke Firestore.
@@ -446,11 +485,15 @@ int evaluateTier({
   required LatLng driverPosition,
   required DateTime now,
   required List<CampusZone> zones,
+  String serviceType = 'GasRide',
   DispatchConfig config = const DispatchConfig(),
 }) {
   // Driver umum selalu tier 3
   if (driverRole != 'driver_kampus') return 3;
   if (!driverIsOnline) return 2;
+
+  // Tier 1 hanya berlaku untuk GasRide (motor); GasCar/lainnya tidak boleh tier 1
+  if (serviceType.trim().toLowerCase() != 'gasride') return 2;
 
   // Syarat 2: destination harus dalam zona kampus
   final destZone = zoneOfPoint(destination, zones);

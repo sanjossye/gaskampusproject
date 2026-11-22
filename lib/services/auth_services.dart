@@ -75,6 +75,7 @@ class AuthService {
     String? nik,
     String? phone,
     String? faculty,
+    String? jurusan,
   }) async {
     final normalizedUsername = normalizeIdentifier(username);
 
@@ -133,6 +134,7 @@ class AuthService {
       phone: normalizedPhone,
       role: role,
       facultas: faculty,
+      jurusan: jurusan,
       isVerified: role == 'mahasiswa' || role == 'admin',
       createdAt: now,
       updatedAt: now,
