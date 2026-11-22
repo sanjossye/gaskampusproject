@@ -144,10 +144,12 @@ const Map<String, String> _facultyAliases = {
   // FK
   'fk': 'FK',
   'fakultas kedokteran': 'FK',
+  'fakultas kedokteran (fk)': 'FK',
   'kedokteran': 'FK',
   // FKG
   'fkg': 'FKG',
   'fakultas kedokteran gigi': 'FKG',
+  'fakultas kedokteran gigi (fkg)': 'FKG',
   'kedokteran gigi': 'FKG',
   // FASILKOMTI
   'fasilkomti': 'FASILKOMTI',
@@ -156,40 +158,49 @@ const Map<String, String> _facultyAliases = {
   'fasilkom': 'FASILKOMTI',
   'fakultas ilmu komputer': 'FASILKOMTI',
   'fakultas ilmu komputer dan teknologi informasi': 'FASILKOMTI',
+  'fakultas ilmu komputer dan teknologi informasi (fasilkom-ti)': 'FASILKOMTI',
   // FIB
   'fib': 'FIB',
   'fakultas ilmu budaya': 'FIB',
+  'fakultas ilmu budaya (fib)': 'FIB',
   'ilmu budaya': 'FIB',
   // FT
   'ft': 'FT',
   'fakultas teknik': 'FT',
+  'fakultas teknik (ft)': 'FT',
   'teknik': 'FT',
   // PSIKOLOGI
   'psikologi': 'PSIKOLOGI',
   'fpsi': 'PSIKOLOGI',
   'fakultas psikologi': 'PSIKOLOGI',
+  'fakultas psikologi (fpsi)': 'PSIKOLOGI',
   // FMIPA
   'fmipa': 'FMIPA',
   'mipa': 'FMIPA',
   'fakultas mipa': 'FMIPA',
   'fakultas matematika dan ilmu pengetahuan alam': 'FMIPA',
+  'fakultas matematika dan ilmu pengetahuan alam (fmipa)': 'FMIPA',
   // VOKASI
   'vokasi': 'VOKASI',
   'fv': 'VOKASI',
   'fakultas vokasi': 'VOKASI',
+  'fakultas vokasi (fv)': 'VOKASI',
   // FP
   'fp': 'FP',
   'pertanian': 'FP',
   'fakultas pertanian': 'FP',
+  'fakultas pertanian (fp)': 'FP',
   // FISIP
   'fisip': 'FISIP',
   'fakultas ilmu sosial dan ilmu politik': 'FISIP',
+  'fakultas ilmu sosial dan ilmu politik (fisip)': 'FISIP',
   'ilmu sosial dan ilmu politik': 'FISIP',
   // FEB
   'feb': 'FEB',
   'fe': 'FEB',
   'fakultas ekonomi': 'FEB',
   'fakultas ekonomi dan bisnis': 'FEB',
+  'fakultas ekonomi dan bisnis (feb)': 'FEB',
   'ekonomi dan bisnis': 'FEB',
   // MKN
   'mkn': 'MKN',

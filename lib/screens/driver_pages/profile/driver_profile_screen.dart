@@ -83,11 +83,14 @@ class DriverProfileScreen extends StatelessWidget {
                                   height: 120,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
+                                    color: kPrimary.withOpacity(0.15),
                                     border: Border.all(color: isDark ? const Color(0xFF1D2210) : Colors.white, width: 4),
-                                    image: const DecorationImage(
-                                      image: NetworkImage(
-                                          "https://lh3.googleusercontent.com/aida-public/AB6AXuC1qY-oQKNzPMbEBWLqkDwamL_U7DqX_JmNnXrXf1GNWGR7wxWLIK6WZLEk7OTltAZHnndXUcGatEln4e6GJTRCM18XJ9kjYxlxXvuBU62r7zZsiWgshS8zvQXb2fwqSILtYw0ZqtxVWEKgliPiRrAAJmWCbmP5_pqCT6dgl2sLH2VfFd3aGJJG7EngniKOhLmsOfOoRd-9ynWjRWqeFZaqbgiE9jJPNv5f1o9q3emvgTSM87AAkCYygzFTgNdB1N5un08i9RfGxCA"),
-                                      fit: BoxFit.cover,
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.person_rounded,
+                                      size: 64,
+                                      color: kPrimary,
                                     ),
                                   ),
                                 ),

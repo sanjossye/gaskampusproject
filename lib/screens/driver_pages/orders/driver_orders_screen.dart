@@ -282,7 +282,7 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen>
                         color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('GOPAY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textMuted)),
+                      child: Text('GASPAY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textMuted)),
                     ),
                   ],
                 ),

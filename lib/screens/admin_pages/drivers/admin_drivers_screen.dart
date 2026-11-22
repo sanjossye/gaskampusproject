@@ -1,7 +1,9 @@
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../models/user_model.dart';
 import '../../../services/admin_service.dart';
+import '../../../services/fare_pricing_service.dart';
 import 'package:gas_kampusapp/services/zone_service.dart';
 
 const Color kPrimary = Color(0xFF68CD5C);
@@ -342,6 +344,11 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                       ),
                     ),
 
+                    const SizedBox(height: 20),
+
+                    // Section: Penerapan Harga / Tarif Khusus Akun oleh Admin
+                    _buildAccountFareCard(user, isDark, textPrimary),
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -488,6 +495,134 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAccountFareCard(UserModel user, bool isDark, Color textPrimary) {
+    final fareCtrl = TextEditingController(
+      text: FarePricingService.pricePerKm.toString(),
+    );
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data() ?? {};
+        final customFare = (data['customFarePerKm'] as num?)?.toInt();
+        final activeRate = (customFare != null && customFare > 0)
+            ? customFare
+            : FarePricingService.pricePerKm;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: kPrimary.withOpacity(0.45)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.price_change_rounded, color: kPrimary, size: 19),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Penerapan Harga / Tarif Akun (1 Km)',
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                customFare != null && customFare > 0
+                    ? 'Tarif Khusus Akun Aktif: ${FarePricingService.formatRupiah(customFare)} / 1 km'
+                    : 'Mengikuti Tarif Standar Admin: ${FarePricingService.formatRupiah(activeRate)} / 1 km',
+                style: const TextStyle(
+                  color: Colors.green,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: TextField(
+                        controller: fareCtrl,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          prefixText: '1 Km = Rp ',
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          filled: true,
+                          fillColor: isDark ? Colors.black26 : Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final val = int.tryParse(fareCtrl.text.trim());
+                      if (val == null || val <= 0) return;
+                      await FarePricingService.setAccountCustomFare(user.uid, val);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Harga ${FarePricingService.formatRupiah(val)}/km berhasil diterapkan ke akun ${user.name}!',
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'Terapkan',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (customFare != null && customFare > 0) ...[
+                    const SizedBox(width: 6),
+                    TextButton(
+                      onPressed: () async {
+                        await FarePricingService.setAccountCustomFare(user.uid, null);
+                      },
+                      child: const Text('Reset', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

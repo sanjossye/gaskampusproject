@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
 
@@ -34,24 +33,18 @@ class _NearbyDriversSheet extends StatefulWidget {
 
 class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
     with SingleTickerProviderStateMixin {
-  final MapController _mapController = MapController();
   late AnimationController _radarCtrl;
   bool _isSearching = true;
-  bool _isMapReady = false;
   String _searchStatusText = 'Mendeteksi sinyal GPS mahasiswa di Medan...';
   Timer? _statusTimer;
   Timer? _completeTimer;
 
-  GasMapStyle _mapStyle = GasMapStyle.street;
   LatLng _studentPos =
       MapRouteService.lastKnownDriverGps?.position ??
       MapRouteService.defaultKampusCenter;
-  bool _isRealGps =
-      MapRouteService.lastKnownDriverGps?.isRealDeviceGps ?? false;
   String _studentStreet = 'Area Kampus USU Medan';
 
   int _selectedDriverIndex = 0;
-  List<LatLng> _selectedDriverRoute = [];
 
   final List<Map<String, dynamic>> _drivers = [
     {
@@ -123,54 +116,14 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
     if (!mounted) return;
     setState(() {
       _studentPos = gps.position;
-      _isRealGps = gps.isRealDeviceGps;
     });
     final addr = await MapRouteService.reverseGeocodePosition(gps.position);
     if (!mounted) return;
     setState(() => _studentStreet = addr);
-    _loadRouteFromSelectedDriver();
-  }
-
-  Future<void> _loadRouteFromSelectedDriver() async {
-    final drvPos = _drivers[_selectedDriverIndex]['latLng'] as LatLng;
-    final route = await MapRouteService.fetchRoadRoute(drvPos, _studentPos);
-    if (!mounted) return;
-    setState(() {
-      _selectedDriverRoute = route.points;
-    });
-    _fitMapToDriverAndStudent();
-  }
-
-  void _fitMapToDriverAndStudent() {
-    if (!_isMapReady) return;
-    final drvPos = _drivers[_selectedDriverIndex]['latLng'] as LatLng;
-    try {
-      final bounds = LatLngBounds.fromPoints([
-        _studentPos,
-        drvPos,
-        ..._selectedDriverRoute,
-      ]);
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(42),
-          maxZoom: 16.2,
-        ),
-      );
-    } catch (_) {
-      _mapController.move(_studentPos, 15.0);
-    }
   }
 
   void _selectDriver(int index) {
     setState(() => _selectedDriverIndex = index);
-    _loadRouteFromSelectedDriver();
-  }
-
-  void _cycleMapStyle() {
-    const styles = GasMapStyle.values;
-    final nextIdx = (styles.indexOf(_mapStyle) + 1) % styles.length;
-    setState(() => _mapStyle = styles[nextIdx]);
   }
 
   void _startSearchProcess() {
@@ -196,7 +149,6 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
         setState(() {
           _isSearching = false;
         });
-        _loadRouteFromSelectedDriver();
       }
     });
   }
@@ -206,7 +158,6 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
     _radarCtrl.dispose();
     _statusTimer?.cancel();
     _completeTimer?.cancel();
-    _mapController.dispose();
     super.dispose();
   }
 
@@ -276,7 +227,7 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Peta Radar Driver Kampus',
+                              'Radar Driver Kampus',
                               style: TextStyle(
                                 color: tp,
                                 fontSize: 17,
@@ -286,7 +237,7 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'Lokasi: $_studentStreet',
+                              'Meradar driver aktif di sekitar: $_studentStreet',
                               style: TextStyle(color: ts, fontSize: 11.5),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -450,225 +401,51 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
       children: [
-        // ── Live Google Maps Canvas ──────────────────────────────────────────
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: SizedBox(
-            height: 235,
-            width: double.infinity,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GasKampusLiveMap(
-                    mapController: _mapController,
-                    mapStyle: _mapStyle,
-                    initialCenter: _studentPos,
-                    initialZoom: 15.0,
-                    onMapReady: () {
-                      _isMapReady = true;
-                      _fitMapToDriverAndStudent();
-                    },
-                    polylines: [
-                      if (_selectedDriverRoute.length >= 2)
-                        Polyline(
-                          points: _selectedDriverRoute,
-                          color: kPrimary,
-                          strokeWidth: 5.5,
-                          borderStrokeWidth: 2.0,
-                          borderColor: const Color(0xFF1D2210),
-                        ),
-                    ],
-                    markers: [
-                      // Marker Lokasi Mahasiswa
-                      MapRouteService.buildPlacePinMarker(
-                        point: _studentPos,
-                        label: 'Lokasi Kamu',
-                        color: const Color(0xFF16A34A),
-                        icon: Icons.person_pin_circle_rounded,
-                      ),
-                      // Marker Semua Driver Aktif di Sekitar Kampus
-                      ...List.generate(_drivers.length, (i) {
-                        final drv = _drivers[i];
-                        final drvPos = drv['latLng'] as LatLng;
-                        final isSelected = i == _selectedDriverIndex;
-                        return Marker(
-                          point: drvPos,
-                          width: 110,
-                          height: 62,
-                          alignment: Alignment.topCenter,
-                          child: GestureDetector(
-                            onTap: () => _selectDriver(i),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? kPrimary
-                                        : const Color(0xFF1D2210),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? Colors.black
-                                          : kPrimary,
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    drv['name'] as String,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.black
-                                          : Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Container(
-                                  width: isSelected ? 34 : 28,
-                                  height: isSelected ? 34 : 28,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? kPrimary
-                                        : const Color(0xFF1D2210),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black38,
-                                        blurRadius: 5,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.two_wheeler_rounded,
-                                    size: isSelected ? 18 : 15,
-                                    color: isSelected
-                                        ? Colors.black
-                                        : kPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-
-                // Badge GPS Status di Kiri Atas Peta
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1D2210).withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: kPrimary.withValues(alpha: 0.6)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _isRealGps ? Icons.gps_fixed : Icons.location_on,
-                          color: kPrimary,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          _isRealGps ? 'GPS Live Aktif' : 'Peta Kampus USU Medan',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Tombol Kontrol Peta di Kanan Atas Peta
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Column(
-                    children: [
-                      _mapMiniBtn(
-                        icon: _mapStyle.icon,
-                        tooltip: 'Ganti Tema Peta (${_mapStyle.label})',
-                        onTap: _cycleMapStyle,
-                      ),
-                      const SizedBox(height: 6),
-                      _mapMiniBtn(
-                        icon: Icons.my_location_rounded,
-                        tooltip: 'Paskan Rute ke Lokasi Kamu',
-                        onTap: _fitMapToDriverAndStudent,
-                      ),
-                      const SizedBox(height: 6),
-                      _mapMiniBtn(
-                        icon: Icons.directions_rounded,
-                        tooltip: 'Buka di Google Maps',
-                        onTap: () {
-                          final drvPos =
-                              _drivers[_selectedDriverIndex]['latLng']
-                                  as LatLng;
-                          MapRouteService.openGoogleMapsNavigation(
-                            origin: drvPos,
-                            destination: _studentPos,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // Info Bar
+        // Info Bar Radar Driver Aktif (Tanpa Peta)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: kPrimary.withValues(alpha: isDark ? 0.14 : 0.22),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: kPrimary.withValues(alpha: 0.5)),
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: kPrimaryDeep,
-                size: 18,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kPrimary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.radar_rounded,
+                  color: kTextOnPrimary,
+                  size: 18,
+                ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Ketuk driver untuk melihat rute jemput langsung di peta.',
-                  style: TextStyle(
-                    color: tp,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_drivers.length} Driver Kampus Aktif Terdeteksi',
+                      style: TextStyle(
+                        color: tp,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Pilih salah satu driver aktif di bawah untuk memesan langsung.',
+                      style: TextStyle(
+                        color: ts,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               TextButton.icon(
@@ -724,30 +501,6 @@ class _NearbyDriversSheetState extends State<_NearbyDriversSheet>
           );
         }),
       ],
-    );
-  }
-
-  Widget _mapMiniBtn({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.94),
-        shape: const CircleBorder(),
-        elevation: 3,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 34,
-            height: 34,
-            child: Icon(icon, size: 17, color: Colors.black87),
-          ),
-        ),
-      ),
     );
   }
 

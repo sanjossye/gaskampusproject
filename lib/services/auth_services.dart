@@ -143,7 +143,7 @@ class AuthService {
     batch.set(_users.doc(user.uid), user.toMap());
     batch.set(_db.collection('wallets').doc(user.uid), {
       'userId': user.uid,
-      'balance': role == 'mahasiswa' ? 50000 : 0,
+      'balance': 0,
       'coins': 0,
       'updatedAt': now.toIso8601String(),
     });

@@ -174,13 +174,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.grey[300],
+                          color: kPrimary.withOpacity(0.18),
                           shape: BoxShape.circle,
                           border: Border.all(color: kPrimary, width: 2),
-                          image: const DecorationImage(
-                            image: NetworkImage(
-                                "https://lh3.googleusercontent.com/aida-public/AB6AXuCG2i9AkeW-dn9okRtc2D_Rdt1V-fdAq8zQbuiLWIvUBip32p7E9xalTEwQ02aZ_kZXdUTocpM8F2shgZfR6aAz5CNfrecgHiBzPP2rASaBxZaPiJaARmiuY7yGwwtQY1_jUXwHFGYae8ccX1RF_qg5Al6m_PWQ2fDZRSWwVFnJYe70DPm4A2yPzcOiKCqZ71WYvC_BOF_uU0UHw_MwLwGQ1hglz8_PAMu6gBgo4NPy_RP0jKG3a6f4vLjVe-We4HRn2cQKTiJSr-o"),
-                            fit: BoxFit.cover,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: Colors.black87,
+                            size: 26,
                           ),
                         ),
                       ),

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../services/fare_pricing_service.dart';
 import '../../services/map_route_service.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
@@ -137,7 +138,7 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
 
   static const List<Map<String, dynamic>> _paymentMethods = [
     {
-      'label': 'GoPay Campus',
+      'label': 'GasPay',
       'code': 'wallet',
       'icon': Icons.account_balance_wallet_rounded,
     },
@@ -194,6 +195,9 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
     final paymentCode =
         _paymentMethods[_selectedPayment]['code'] as String? ?? 'wallet';
 
+    final int calculatedFare = FarePricingService.calculateMotorFare(1.0);
+    final String formattedFare = FarePricingService.formatRupiah(calculatedFare);
+
     String docId = 'local_${now.millisecondsSinceEpoch}';
 
     try {
@@ -211,7 +215,7 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
               'originAddress': originText,
               'destinationAddress': destinationText,
               'note': noteText,
-              'fareAmount': _isMakan ? 12000 : 10000,
+              'fareAmount': calculatedFare,
               'paymentMethod': paymentCode,
               'createdAt': now.toIso8601String(),
             })
@@ -231,7 +235,7 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
         destinationAddress: destinationText,
         note: noteText,
         status: 'pending',
-        price: _isMakan ? 'Rp 12.000' : 'Rp 10.000',
+        price: formattedFare,
         createdAt: now,
       ),
     );

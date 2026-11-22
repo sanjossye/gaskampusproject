@@ -36,12 +36,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _profileImage =
-      'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-  String _studentName = 'Ahmad Zaki';
-  String _studentNim = '140610240001';
+  String _profileImage = '';
+  String _studentName = 'Mahasiswa';
+  String _studentNim = '-';
   String _studentFaculty = 'USU Medan';
-  int _walletBalance = 75000;
+  int _walletBalance = 0;
+  int _totalTrips = 0;
+  double _rating = 5.0;
 
   @override
   void initState() {
@@ -69,6 +70,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if ((data['facultas'] ?? '').toString().trim().isNotEmpty) {
                 _studentFaculty = facultyDisplayName(data['facultas'].toString());
               }
+              _profileImage = (data['photoUrl'] ?? '').toString().trim();
+              _totalTrips = (data['totalTrips'] as num?)?.toInt() ?? 0;
+              final r = (data['rating'] as num?)?.toDouble() ?? 0.0;
+              _rating = r > 0 ? r : 5.0;
             });
           }
         });
@@ -77,13 +82,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .doc(user.uid)
         .snapshots()
         .listen((doc) {
-          if (doc.exists && mounted) {
+          if (mounted) {
             final data = doc.data() ?? {};
-            if (data['balance'] is num) {
-              setState(() => _walletBalance = (data['balance'] as num).toInt());
-            }
+            setState(
+              () => _walletBalance = (data['balance'] as num?)?.toInt() ?? 0,
+            );
           }
         });
+  }
+
+  Future<void> _savePhotoUrlToFirestore(String url) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'photoUrl': url.trim().isEmpty ? null : url.trim(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   String _formatRp(int val) {
@@ -215,6 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setState(() {
                           _profileImage = item['url']!;
                         });
+                        _savePhotoUrlToFirestore(item['url']!);
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -295,6 +312,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Divider(color: border, height: 1),
               const SizedBox(height: 16),
 
+              // Option 0: Gunakan Icon Profil Default (Tanpa Foto)
+              _buildPhotoActionTile(
+                icon: Icons.person_rounded,
+                title: 'Gunakan Icon Profil Saja (Default)',
+                subtitle: 'Tampilkan icon profil tanpa gambar foto',
+                color: Colors.teal,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _profileImage = '';
+                  });
+                  _savePhotoUrlToFirestore('');
+                },
+                tp: tp,
+                ts: ts,
+                cardBg: cardBg,
+                border: border,
+              ),
+
+              const SizedBox(height: 10),
+
               // Option 1: Unggah dari Galeri
               _buildPhotoActionTile(
                 icon: Icons.photo_library_rounded,
@@ -303,10 +341,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: const Color(0xFF54A0FF),
                 onTap: () {
                   Navigator.pop(ctx);
+                  const url =
+                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                   setState(() {
-                    _profileImage =
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
+                    _profileImage = url;
                   });
+                  _savePhotoUrlToFirestore(url);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       backgroundColor: const Color(0xFF1D2210),
@@ -410,6 +450,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 setState(() {
                   _profileImage = url;
                 });
+                _savePhotoUrlToFirestore(url);
                 Navigator.pop(dialogCtx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -569,7 +610,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              // Foto Profil (Bisa diklik juga)
+              // Foto Profil (Jika kosong tampilkan Icon Profile saja)
               GestureDetector(
                 onTap: () => _showChangePhotoModal(
                     context, bg, tp, ts, cardBg, border),
@@ -578,6 +619,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    color: kPrimary.withValues(alpha: 0.14),
                     border:
                         Border.all(color: kPrimary.withValues(alpha: 0.35), width: 4),
                     boxShadow: [
@@ -587,11 +629,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         spreadRadius: 2,
                       ),
                     ],
-                    image: DecorationImage(
-                      image: NetworkImage(_profileImage),
-                      fit: BoxFit.cover,
-                    ),
                   ),
+                  child: _profileImage.trim().isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            _profileImage,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Center(
+                              child: Icon(
+                                Icons.person_rounded,
+                                size: 64,
+                                color: kPrimaryDeep,
+                              ),
+                            ),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.person_rounded,
+                            size: 64,
+                            color: kPrimaryDeep,
+                          ),
+                        ),
                 ),
               ),
 
@@ -656,17 +717,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 3. Stats Grid
+  // 3. Stats Grid (Tanpa bagian Hemat)
   Widget _buildStatsGrid(Color tp, Color ts) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _buildStatCard('PERJALANAN', '24', tp, ts),
+          _buildStatCard('PERJALANAN', '$_totalTrips', tp, ts),
           const SizedBox(width: 12),
-          _buildStatCard('RATING', '4.9', tp, ts, icon: Icons.star_rounded),
-          const SizedBox(width: 12),
-          _buildStatCard('HEMAT', '150k', tp, ts),
+          _buildStatCard(
+            'RATING',
+            _rating.toStringAsFixed(1),
+            tp,
+            ts,
+            icon: Icons.star_rounded,
+          ),
         ],
       ),
     );

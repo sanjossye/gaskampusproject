@@ -159,6 +159,53 @@ class MapRouteService {
 
   /// Polygon Geofencing dipindahkan ke ZoneService — lihat lib/services/zone_service.dart
 
+  /// Mencari koordinat alamat secara online (Photon Geocoder) jika tidak ada di kamus lokal
+  static Future<LatLng> searchOrResolveCoordinate(
+    String address, {
+    LatLng? nearPos,
+    String? fallbackZone,
+  }) async {
+    final normalized = address.toLowerCase().trim();
+    if (normalized.isEmpty) return nearPos ?? defaultKampusCenter;
+
+    if (_knownLocations.containsKey(normalized)) {
+      return _knownLocations[normalized]!;
+    }
+    for (final entry in _knownLocations.entries) {
+      if (normalized.contains(entry.key) || entry.key.contains(normalized)) {
+        return entry.value;
+      }
+    }
+
+    final ref = nearPos ?? lastKnownDriverGps?.position ?? defaultKampusCenter;
+    try {
+      final q = Uri.encodeComponent('$address Medan');
+      final uri = Uri.parse(
+        'https://photon.komoot.io/api/?q=$q&lat=${ref.latitude}&lon=${ref.longitude}&limit=1',
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final features = data['features'] as List<dynamic>?;
+        if (features != null && features.isNotEmpty) {
+          final geom =
+              (features.first as Map<String, dynamic>)['geometry']
+                  as Map<String, dynamic>?;
+          final coords = geom?['coordinates'] as List<dynamic>?;
+          if (coords != null && coords.length >= 2) {
+            final lng = (coords[0] as num).toDouble();
+            final lat = (coords[1] as num).toDouble();
+            if (_isInsideIndonesia(lat, lng)) {
+              return LatLng(lat, lng);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    return resolveCoordinate(address, fallbackZone: fallbackZone);
+  }
+
   /// Mendapatkan rute jalan asli via OSRM (OpenStreetMap Routing Machine)
   static Future<RoadRouteResult> fetchRoadRoute(LatLng start, LatLng end) async {
     final uri = Uri.parse(
@@ -305,7 +352,7 @@ class MapRouteService {
       return bridgeGps;
     }
 
-    // 2. Cek hardware GPS Android / HP asli
+    // 2. Cek hardware GPS Android / HP asli / Browser Geolocation (Web)
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (serviceEnabled) {
@@ -320,11 +367,22 @@ class MapRouteService {
             pos = await Geolocator.getCurrentPosition(
               locationSettings: const LocationSettings(
                 accuracy: LocationAccuracy.high,
-                timeLimit: Duration(seconds: 10),
+                timeLimit: Duration(seconds: 7),
               ),
             );
           } catch (_) {
-            pos = await Geolocator.getLastKnownPosition();
+            try {
+              pos = await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(
+                  accuracy: LocationAccuracy.low,
+                  timeLimit: Duration(seconds: 5),
+                ),
+              );
+            } catch (_) {
+              if (!kIsWeb) {
+                pos = await Geolocator.getLastKnownPosition();
+              }
+            }
           }
 
           if (pos != null && _isInsideIndonesia(pos.latitude, pos.longitude)) {
@@ -720,6 +778,10 @@ class MapRouteService {
   }
 }
 
+/// Saklar boolean untuk menampilkan/menyembunyikan overlay debug Zona A–F di peta.
+/// Ubah ke `true` saat ingin mengecek polygon Zona A–F & tap koordinat di mode debug.
+const bool kEnableZoneDebugOverlay = false;
+
 /// Canvas peta interaktif asli berbasis Google Maps Tiles (Jalan / Terrain / Satelit)
 class GasKampusLiveMap extends StatefulWidget {
   final MapController mapController;
@@ -729,6 +791,7 @@ class GasKampusLiveMap extends StatefulWidget {
   final List<Polyline> polylines;
   final List<Marker> markers;
   final VoidCallback? onMapReady;
+  final void Function(TapPosition tapPosition, LatLng point)? onTap;
 
   const GasKampusLiveMap({
     super.key,
@@ -739,6 +802,7 @@ class GasKampusLiveMap extends StatefulWidget {
     this.polylines = const [],
     this.markers = const [],
     this.onMapReady,
+    this.onTap,
   });
 
   @override
@@ -754,7 +818,7 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
   void initState() {
     super.initState();
     _tileProvider = NetworkTileProvider(silenceExceptions: true);
-    if (kDebugMode) {
+    if (kDebugMode && kEnableZoneDebugOverlay) {
       _loadDebugZones();
     }
   }
@@ -762,13 +826,13 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
   @override
   void reassemble() {
     super.reassemble();
-    if (kDebugMode) {
+    if (kDebugMode && kEnableZoneDebugOverlay) {
       _loadDebugZones();
     }
   }
 
   Future<void> _loadDebugZones() async {
-    if (!kDebugMode) return;
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return;
     var zones = await ZoneService.loadZones();
     if (zones.isEmpty) {
       // Jika koleksi `zones` di Firestore belum pernah di-seed, seed ke Firestore
@@ -813,7 +877,7 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
   }
 
   void _handleDebugTap(TapPosition tapPosition, LatLng point) {
-    if (!kDebugMode) return;
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return;
     final matched = zoneOfPoint(point, _debugZones);
     final coordText =
         '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
@@ -840,7 +904,14 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
         minZoom: 11.0,
         maxZoom: 19.0,
         onMapReady: widget.onMapReady,
-        onTap: kDebugMode ? _handleDebugTap : null,
+        onTap: (widget.onTap != null || (kDebugMode && kEnableZoneDebugOverlay))
+            ? (tapPos, point) {
+                widget.onTap?.call(tapPos, point);
+                if (kDebugMode && kEnableZoneDebugOverlay) {
+                  _handleDebugTap(tapPos, point);
+                }
+              }
+            : null,
       ),
       children: [
         TileLayer(
@@ -849,7 +920,7 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
           userAgentPackageName: 'com.gaskampus.app',
           maxNativeZoom: 19,
         ),
-        if (kDebugMode && _debugShowZones && _debugZones.isNotEmpty)
+        if (kDebugMode && kEnableZoneDebugOverlay && _debugShowZones && _debugZones.isNotEmpty)
           PolygonLayer(
             polygons: _debugZones.map((z) {
               final c = _debugZoneColor(z.id);
@@ -863,7 +934,7 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
           ),
         if (widget.polylines.isNotEmpty)
           PolylineLayer(polylines: widget.polylines),
-        if (kDebugMode && _debugShowZones && _debugZones.isNotEmpty)
+        if (kDebugMode && kEnableZoneDebugOverlay && _debugShowZones && _debugZones.isNotEmpty)
           MarkerLayer(
             markers: _debugZones.map((z) {
               final c = _debugZoneColor(z.id);
@@ -900,7 +971,7 @@ class _GasKampusLiveMapState extends State<GasKampusLiveMap> {
       ],
     );
 
-    if (!kDebugMode) return map;
+    if (!(kDebugMode && kEnableZoneDebugOverlay)) return map;
 
     return Stack(
       children: [

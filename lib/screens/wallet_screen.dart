@@ -52,7 +52,7 @@ class _WalletScreenState extends State<WalletScreen> {
     'Bank BCA',
     'OVO',
     'DANA',
-    'GoPay',
+    'ShopeePay',
   ];
 
   static const List<String> _topUpMethods = [
@@ -61,7 +61,7 @@ class _WalletScreenState extends State<WalletScreen> {
     'Alfamart',
     'Indomaret',
     'DANA (Link)',
-    'GoPay (Link)',
+    'ShopeePay (Link)',
   ];
 
   static const List<String> _dayLabels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
