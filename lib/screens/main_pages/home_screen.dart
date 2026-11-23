@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
+import '../../widgets/gas_faces.dart';
 import 'package:gas_kampusapp/services/zone_service.dart';
 import 'promo_screen.dart';
 import 'pesanan_screen.dart' as pesanan;
@@ -52,7 +53,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   int _navIndex = 0;
 
   /// Sinyal untuk membuka tab Riwayat Pesanan dari Beranda.
@@ -66,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
+  late final AnimationController _gpsPulseCtrl;
 
   String _userName = 'Mahasiswa';
   String _userFaculty = 'Kampus USU Medan';
@@ -73,14 +75,12 @@ class _HomeScreenState extends State<HomeScreen>
   int _walletBalance = 0;
   int _coinBalance = 0;
 
-  // Live GPS State untuk Mahasiswa
+  // Live GPS State untuk Mahasiswa (tetap meminta lokasi real perangkat)
   LatLng _studentGps =
       MapRouteService.lastKnownDriverGps?.position ??
       MapRouteService.defaultKampusCenter;
-  String _studentAddress = 'Mendeteksi lokasi perangkat di Medan...';
   bool _isRealGps =
       MapRouteService.lastKnownDriverGps?.isRealDeviceGps ?? false;
-  DateTime _lastGeocodeTime = DateTime.fromMillisecondsSinceEpoch(0);
   StreamSubscription<DriverGpsResult>? _gpsStreamSub;
 
   String _getGreeting() {
@@ -154,31 +154,15 @@ class _HomeScreenState extends State<HomeScreen>
       _studentGps = gps.position;
       _isRealGps = gps.isRealDeviceGps;
     });
-    await _refreshStudentAddress(gps.position);
 
     _gpsStreamSub?.cancel();
     _gpsStreamSub = MapRouteService.watchDriverPosition().listen((liveGps) {
       if (!mounted) return;
-      final moved = MapRouteService.distanceInMeters(
-        _studentGps,
-        liveGps.position,
-      );
       setState(() {
         _studentGps = liveGps.position;
-        _isRealGps = true;
+        _isRealGps = liveGps.isRealDeviceGps;
       });
-      if (moved > 35 ||
-          DateTime.now().difference(_lastGeocodeTime).inSeconds > 20) {
-        _refreshStudentAddress(liveGps.position);
-      }
     });
-  }
-
-  Future<void> _refreshStudentAddress(LatLng pos) async {
-    _lastGeocodeTime = DateTime.now();
-    final addr = await MapRouteService.reverseGeocodePosition(pos);
-    if (!mounted) return;
-    setState(() => _studentAddress = addr);
   }
 
   void _openOrderWithDestination(String destination) {
@@ -205,17 +189,23 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     _loadUserData();
     _initStudentGps();
+    SessionOrderStore.purgeOlderThanOneMonthDatabase();
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+    _gpsPulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
   }
 
   @override
   void dispose() {
     _gpsStreamSub?.cancel();
+    _gpsPulseCtrl.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -270,10 +260,9 @@ class _HomeScreenState extends State<HomeScreen>
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: _buildHeader(tp, ts, isDark)),
+        SliverToBoxAdapter(child: _buildWalletCard()),
         SliverToBoxAdapter(child: _buildSectionLabel('Promo Untukmu', tp, ts)),
         SliverToBoxAdapter(child: _buildPromoBanner()),
-        SliverToBoxAdapter(child: _buildLiveGpsBar(tp, ts, isDark, border)),
-        SliverToBoxAdapter(child: _buildWalletCard()),
         SliverToBoxAdapter(child: _buildSearchBar(ts, border, isDark)),
         SliverToBoxAdapter(child: _buildSectionLabel('Layanan', tp, ts)),
         SliverToBoxAdapter(child: _buildServiceGrid(tp, isDark)),
@@ -322,25 +311,7 @@ class _HomeScreenState extends State<HomeScreen>
                 color: kPrimary,
                 shape: BoxShape.circle,
               ),
-              child: _userPhotoUrl.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        _userPhotoUrl,
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Icon(
-                          Icons.person_rounded,
-                          color: kTextOnPrimary,
-                          size: 24,
-                        ),
-                      ),
-                    )
-                  : const Icon(
-                      Icons.person_rounded,
-                      color: kTextOnPrimary,
-                      size: 24,
-                    ),
+              child: GasProfileImage(photoUrl: _userPhotoUrl, size: 44),
             ),
           ),
           const SizedBox(width: 12),
@@ -359,6 +330,8 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
+          _buildGpsStatusIndicator(isDark),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _openJadwalKuliahScreen,
             child: Tooltip(
@@ -371,29 +344,271 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _buildIconBtn(Icons.notifications_outlined, tp, isDark),
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: kPrimary,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isDark ? kBgDark : kBgLight,
-                      width: 1.5,
-                    ),
+          ValueListenableBuilder<int>(
+            valueListenable: AppNotificationStore.version,
+            builder: (context, _, _) {
+              final unread = AppNotificationStore.unreadCount;
+              return GestureDetector(
+                onTap: () => _showNotificationsSheet(
+                  context,
+                  tp,
+                  ts,
+                  isDark,
+                  isDark ? kBorderDark : kBorderLight,
+                ),
+                child: Tooltip(
+                  message: 'Notifikasi',
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _buildIconBtn(Icons.notifications_outlined, tp, isDark),
+                      if (unread > 0)
+                        Positioned(
+                          right: 4,
+                          top: 4,
+                          child: Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: kPrimary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? kBgDark : kBgLight,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  void _showNotificationsSheet(
+    BuildContext context,
+    Color tp,
+    Color ts,
+    bool isDark,
+    Color border,
+  ) {
+    AppNotificationStore.markAllAsRead();
+    final sheetBg = isDark ? kCardDark : Colors.white;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            final list = AppNotificationStore.items;
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+              ),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                MediaQuery.of(ctx).padding.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: sheetBg,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Notifikasi',
+                        style: _body(tp, 18, FontWeight.bold),
+                      ),
+                      if (list.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            AppNotificationStore.clearAll();
+                            setSheet(() {});
+                          },
+                          child: Text(
+                            'Hapus Semua',
+                            style: _body(
+                              Colors.redAccent,
+                              12.5,
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: border, height: 1),
+                  if (list.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 42),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.notifications_none_rounded,
+                            size: 46,
+                            color: ts.withValues(alpha: 0.45),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Belum ada notifikasi',
+                            style: _body(ts, 14, FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.only(top: 12),
+                        itemCount: list.length,
+                        separatorBuilder: (_, _) =>
+                            Divider(color: border, height: 20),
+                        itemBuilder: (_, i) {
+                          final item = list[i];
+                          final hh = item.createdAt.hour
+                              .toString()
+                              .padLeft(2, '0');
+                          final mm = item.createdAt.minute
+                              .toString()
+                              .padLeft(2, '0');
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(item.icon, color: item.color, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.title,
+                                            style: _body(
+                                              tp,
+                                              13.5,
+                                              FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '$hh:$mm',
+                                          style: _body(
+                                            ts,
+                                            11,
+                                            FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      item.message,
+                                      style: _body(
+                                        ts,
+                                        12.5,
+                                        FontWeight.normal,
+                                        h: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGpsStatusIndicator(bool isDark) {
+    final Color activeColor = _isRealGps
+        ? const Color(0xFF22C55E)
+        : const Color(0xFF94A3B8);
+
+    return GestureDetector(
+      onTap: _initStudentGps,
+      child: Tooltip(
+        message: _isRealGps
+            ? 'GPS Aktif (${_studentGps.latitude.toStringAsFixed(4)}, ${_studentGps.longitude.toStringAsFixed(4)})'
+            : 'GPS Belum Aktif (Ketuk untuk meminta izin lokasi)',
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: AnimatedBuilder(
+            animation: _gpsPulseCtrl,
+            builder: (context, _) {
+              final double t = _gpsPulseCtrl.value;
+              final double pulseSize = 12 + (18 * t);
+              final double pulseOpacity = (1.0 - t) * (_isRealGps ? 0.55 : 0.30);
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: pulseSize,
+                    height: pulseSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: activeColor.withValues(alpha: pulseOpacity),
+                    ),
+                  ),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: activeColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: activeColor.withValues(
+                            alpha: _isRealGps ? 0.5 : 0.25,
+                          ),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -407,80 +622,6 @@ class _HomeScreenState extends State<HomeScreen>
         border: Border.all(color: isDark ? kBorderDark : kBorderLight),
       ),
       child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 1b. Live Device GPS Bar (Setara Sistem Maps Driver Umum)
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildLiveGpsBar(Color tp, Color ts, bool isDark, Color border) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isDark ? kCardDark : kCardLight,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _isRealGps ? Icons.gps_fixed : Icons.location_searching,
-              color: _isRealGps ? Colors.green : Colors.orange,
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _studentAddress,
-                    style: _body(tp, 12, FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${_studentGps.latitude.toStringAsFixed(4)}, ${_studentGps.longitude.toStringAsFixed(4)} · Medan',
-                    style: _body(ts, 10, FontWeight.w500),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color: _isRealGps
-                    ? Colors.green.withValues(alpha: 0.14)
-                    : kPrimary.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _isRealGps ? 'GPS ASLI' : 'LIVE MEDAN',
-                style: TextStyle(
-                  color: _isRealGps ? Colors.green[700] : kTextOnPrimary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: _initStudentGps,
-              borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(
-                  Icons.refresh_rounded,
-                  color: kPrimaryDeep,
-                  size: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -782,9 +923,8 @@ class _HomeScreenState extends State<HomeScreen>
     bool isDark,
     double itemW,
   ) {
-    final boxSz = (itemW * 0.72).clamp(44.0, 60.0);
-    final iconBg = boxSz * 0.65;
-    final iconSz = boxSz * 0.36;
+    final boxSz = (itemW * 0.64).clamp(44.0, 56.0);
+    final iconSz = boxSz * 0.48;
 
     return GestureDetector(
       onTap: s.onTap,
@@ -798,21 +938,10 @@ class _HomeScreenState extends State<HomeScreen>
               width: boxSz,
               height: boxSz,
               decoration: BoxDecoration(
-                color: isDark ? kCardDark : kCardLight,
-                borderRadius: BorderRadius.circular(boxSz * 0.30),
-                border: Border.all(color: isDark ? kBorderDark : kBorderLight),
+                color: s.bg,
+                borderRadius: BorderRadius.circular(boxSz * 0.32),
               ),
-              child: Center(
-                child: Container(
-                  width: iconBg,
-                  height: iconBg,
-                  decoration: BoxDecoration(
-                    color: s.bg,
-                    borderRadius: BorderRadius.circular(iconBg * 0.30),
-                  ),
-                  child: Icon(s.icon, color: s.iconColor, size: iconSz),
-                ),
-              ),
+              child: Icon(s.icon, color: s.iconColor, size: iconSz),
             ),
             const SizedBox(height: 7),
             Text(

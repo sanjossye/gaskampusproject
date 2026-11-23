@@ -8,6 +8,8 @@ import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
 import '../../services/fare_pricing_service.dart';
 import '../../services/wallet_service.dart';
+import '../../widgets/gas_faces.dart';
+import '../payment_success_screen.dart';
 import 'service_order_screen.dart';
 import 'topup_modal.dart';
 
@@ -34,6 +36,7 @@ class OrderItem {
   final String to;
   final String price;
   final String status;
+  final DateTime createdAt;
 
   const OrderItem({
     required this.driverName,
@@ -44,11 +47,12 @@ class OrderItem {
     required this.to,
     required this.price,
     required this.status,
+    required this.createdAt,
   });
 }
 
 final List<OrderItem> _allOrders = [
-  const OrderItem(
+  OrderItem(
     driverName: 'Siti Aminah',
     driverPhoto:
         'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
@@ -58,8 +62,9 @@ final List<OrderItem> _allOrders = [
     to: 'Gedung Biro Rektor USU',
     price: 'Rp 10.000',
     status: 'proses',
+    createdAt: DateTime.now().subtract(const Duration(hours: 2)),
   ),
-  const OrderItem(
+  OrderItem(
     driverName: 'Budi Santoso',
     driverPhoto:
         'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
@@ -69,8 +74,9 @@ final List<OrderItem> _allOrders = [
     to: 'Kantin Vokasi USU',
     price: 'Rp 12.000',
     status: 'selesai',
+    createdAt: DateTime.now().subtract(const Duration(days: 1)),
   ),
-  const OrderItem(
+  OrderItem(
     driverName: 'Andi Wijaya',
     driverPhoto:
         'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80',
@@ -80,6 +86,7 @@ final List<OrderItem> _allOrders = [
     to: 'Stasiun Medan',
     price: 'Rp 25.000',
     status: 'selesai',
+    createdAt: DateTime.now().subtract(const Duration(days: 2)),
   ),
 ];
 
@@ -113,6 +120,8 @@ class _PesananScreenState extends State<PesananScreen>
   String _activeDestinationAddress = 'Gedung Biro Rektor USU';
   String _activeServiceLabel = 'GasRide';
   String _activeFareLabel = 'Rp 5.000';
+  int _activeFareAmount = 5000;
+  String _activePaymentMethod = 'GasPay';
   LatLng? _activePickupLatLng;
   LatLng? _activeDestinationLatLng;
 
@@ -160,12 +169,23 @@ class _PesananScreenState extends State<PesananScreen>
       case 0:
         return _FindDriverScreen(
           initialDestination: widget.initialDestination,
-          onFindDriver: (pickup, dest, svc, fare, pickupPos, destPos) {
+          onFindDriver: (
+            pickup,
+            dest,
+            svc,
+            fare,
+            fareAmount,
+            paymentMethod,
+            pickupPos,
+            destPos,
+          ) {
             setState(() {
               _activePickupAddress = pickup;
               _activeDestinationAddress = dest;
               _activeServiceLabel = svc;
               _activeFareLabel = fare;
+              _activeFareAmount = fareAmount;
+              _activePaymentMethod = paymentMethod;
               _activePickupLatLng = pickupPos;
               _activeDestinationLatLng = destPos;
               _mainStep = 1;
@@ -179,6 +199,8 @@ class _PesananScreenState extends State<PesananScreen>
           destinationAddress: _activeDestinationAddress,
           serviceLabel: _activeServiceLabel,
           fareLabel: _activeFareLabel,
+          fareAmount: _activeFareAmount,
+          paymentMethod: _activePaymentMethod,
           initialPickupLatLng: _activePickupLatLng,
           initialDropoffLatLng: _activeDestinationLatLng,
           onBack: () => setState(() => _mainStep = 0),
@@ -202,6 +224,8 @@ class _FindDriverScreen extends StatefulWidget {
     String destination,
     String serviceLabel,
     String fareLabel,
+    int fareAmount,
+    String paymentMethod,
     LatLng pickupPos,
     LatLng destPos,
   ) onFindDriver;
@@ -224,6 +248,13 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _walletSub;
   StreamSubscription<DriverGpsResult>? _gpsLiveSub;
 
+  // State untuk Opsi Lainnya (Catatan, Voucher, Penumpang Lain, Jadwal)
+  String _driverNote = '';
+  String? _selectedVoucherTitle;
+  int _voucherDiscount = 0;
+  String? _otherPassengerInfo;
+  String? _scheduledTimeLabel;
+
   final TextEditingController _pickupController = TextEditingController(
     text: 'Mendeteksi lokasi perangkat...',
   );
@@ -239,7 +270,6 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
   String _customTappedDestAddress = '';
   double _routeDistanceKm = 1.0;
   int _routeEtaMinutes = 3;
-  bool _isRealGps = MapRouteService.lastKnownDriverGps?.isRealDeviceGps ?? false;
   Timer? _routeDebounce;
 
   static const List<String> _campusQuickLocations = [
@@ -298,7 +328,6 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
           _pickupController.text.trim() == _detectedPickupAddress;
       setState(() {
         _devicePos = liveGps.position;
-        _isRealGps = liveGps.isRealDeviceGps;
         if (isUsingCurrentGps) {
           _pickupPos = liveGps.position;
         }
@@ -335,7 +364,6 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     setState(() {
       _devicePos = gps.position;
       _pickupPos = gps.position;
-      _isRealGps = gps.isRealDeviceGps;
     });
 
     final street = await MapRouteService.reverseGeocodePosition(gps.position);
@@ -453,10 +481,11 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         : _destinationController.text.trim();
     final svcLabel = _services[_selectedService]['label'] as String;
 
-    // Hitung tarif resmi dinamis sesuai ketetapan Admin
-    final int dynamicFare = _selectedService == 1
+    // Hitung tarif resmi dinamis sesuai ketetapan Admin (dikurangi voucher jika aktif)
+    final int baseFare = _selectedService == 1
         ? FarePricingService.calculateCarFare(_routeDistanceKm)
         : FarePricingService.calculateMotorFare(_routeDistanceKm);
+    final int dynamicFare = math.max(1000, baseFare - _voucherDiscount);
     final String fareStr = FarePricingService.formatRupiah(dynamicFare);
 
     // Validasi saldo jika memilih pembayaran GasPay
@@ -483,6 +512,21 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         ? 'GasPay'
         : (_selectedPayment == 1 ? 'QRIS' : 'Tunai');
 
+    final List<String> noteParts = [];
+    if (_driverNote.trim().isNotEmpty) {
+      noteParts.add('Catatan: ${_driverNote.trim()}');
+    }
+    if (_selectedVoucherTitle != null) {
+      noteParts.add('Voucher: $_selectedVoucherTitle (-Rp ${WalletService.formatRupiah(_voucherDiscount)})');
+    }
+    if (_otherPassengerInfo != null && _otherPassengerInfo!.trim().isNotEmpty) {
+      noteParts.add('Penumpang: ${_otherPassengerInfo!.trim()}');
+    }
+    if (_scheduledTimeLabel != null && _scheduledTimeLabel!.trim().isNotEmpty) {
+      noteParts.add('Jadwal: ${_scheduledTimeLabel!.trim()}');
+    }
+    final String combinedNote = noteParts.join(' • ');
+
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
@@ -496,7 +540,7 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
               'items': 'Layanan Antar ($svcLabel)',
               'originAddress': pickup,
               'destinationAddress': dest,
-              'note': '',
+              'note': combinedNote,
               'fareAmount': dynamicFare,
               'distanceKm': _routeDistanceKm,
               'paymentMethod': paymentCode,
@@ -514,15 +558,30 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         items: 'Layanan Antar ($svcLabel)',
         originAddress: pickup,
         destinationAddress: dest,
-        note: '',
+        note: combinedNote,
         status: 'pending',
         price: fareStr,
         createdAt: now,
       ),
     );
+    AppNotificationStore.add(
+      title: 'Mencari driver ($svcLabel)',
+      message: 'Pesananmu dari $pickup ke $dest ($fareStr) sedang dicarikan driver.',
+      icon: Icons.search_rounded,
+      color: const Color(0xFF64748B),
+    );
 
     if (mounted) {
-      widget.onFindDriver(pickup, dest, svcLabel, fareStr, _pickupPos, _destPos);
+      widget.onFindDriver(
+        pickup,
+        dest,
+        svcLabel,
+        fareStr,
+        dynamicFare,
+        paymentCode,
+        _pickupPos,
+        _destPos,
+      );
     }
   }
 
@@ -758,86 +817,570 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          24,
-          20,
-          24,
-          MediaQuery.of(context).padding.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.black12,
-                  borderRadius: BorderRadius.circular(99),
+      builder: (_) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) => Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            20,
+            24,
+            MediaQuery.of(sheetCtx).padding.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
                 ),
               ),
+              Text(
+                'Opsi Lainnya',
+                style: _body(textColorPrimary, 18, FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Fitur tambahan untuk perjalananmu',
+                style: _body(textColorSecondary, 13, FontWeight.normal),
+              ),
+              const SizedBox(height: 20),
+              _lainnyaItem(
+                icon: Icons.note_alt_outlined,
+                iconColor: const Color(0xFF2B6CB0),
+                title: 'Catatan untuk Driver',
+                subtitle: _driverNote.isNotEmpty
+                    ? _driverNote
+                    : 'Tambahkan instruksi khusus',
+                isActive: _driverNote.isNotEmpty,
+                isDark: isDark,
+                textColorPrimary: textColorPrimary,
+                textColorSecondary: textColorSecondary,
+                borderColor: borderColor,
+                onTap: () => _openNoteDialog(
+                  sheetCtx,
+                  setSheet,
+                  isDark,
+                  textColorPrimary,
+                  textColorSecondary,
+                  cardBg,
+                  borderColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _lainnyaItem(
+                icon: Icons.discount_outlined,
+                iconColor: const Color(0xFFE53E3E),
+                title: 'Gunakan Voucher',
+                subtitle: _selectedVoucherTitle != null
+                    ? '$_selectedVoucherTitle (-Rp ${WalletService.formatRupiah(_voucherDiscount)})'
+                    : 'Hemat lebih banyak',
+                isActive: _selectedVoucherTitle != null,
+                isDark: isDark,
+                textColorPrimary: textColorPrimary,
+                textColorSecondary: textColorSecondary,
+                borderColor: borderColor,
+                onTap: () => _openVoucherSheet(
+                  sheetCtx,
+                  setSheet,
+                  isDark,
+                  textColorPrimary,
+                  textColorSecondary,
+                  cardBg,
+                  borderColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _lainnyaItem(
+                icon: Icons.group_outlined,
+                iconColor: const Color(0xFF7C3AED),
+                title: 'Pesan untuk Orang Lain',
+                subtitle: _otherPassengerInfo != null
+                    ? 'Penumpang: $_otherPassengerInfo'
+                    : 'Kirim pesanan ke kontak',
+                isActive: _otherPassengerInfo != null,
+                isDark: isDark,
+                textColorPrimary: textColorPrimary,
+                textColorSecondary: textColorSecondary,
+                borderColor: borderColor,
+                onTap: () => _openOtherPassengerDialog(
+                  sheetCtx,
+                  setSheet,
+                  isDark,
+                  textColorPrimary,
+                  textColorSecondary,
+                  cardBg,
+                  borderColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _lainnyaItem(
+                icon: Icons.schedule_rounded,
+                iconColor: const Color(0xFF059669),
+                title: 'Jadwalkan Perjalanan',
+                subtitle: _scheduledTimeLabel != null
+                    ? 'Penjemputan: $_scheduledTimeLabel'
+                    : 'Atur waktu penjemputan',
+                isActive: _scheduledTimeLabel != null,
+                isDark: isDark,
+                textColorPrimary: textColorPrimary,
+                textColorSecondary: textColorSecondary,
+                borderColor: borderColor,
+                onTap: () => _openScheduleSheet(
+                  sheetCtx,
+                  setSheet,
+                  isDark,
+                  textColorPrimary,
+                  textColorSecondary,
+                  cardBg,
+                  borderColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openNoteDialog(
+    BuildContext sheetCtx,
+    StateSetter setSheet,
+    bool isDark,
+    Color tp,
+    Color ts,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    final noteCtrl = TextEditingController(text: _driverNote);
+    const quickNotes = [
+      'Tunggu di depan gerbang utama',
+      'Saya pakai jaket/kemeja hijau',
+      'Titik jemput sesuai pin peta',
+      'Hubungi saya jika sudah dekat',
+    ];
+
+    showDialog(
+      context: sheetCtx,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          'Catatan untuk Driver',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: noteCtrl,
+                maxLines: 2,
+                style: _body(tp, 14, FontWeight.w500),
+                decoration: InputDecoration(
+                  hintText: 'Contoh: Tunggu di dekat pos satpam...',
+                  hintStyle: _body(ts, 13, FontWeight.normal),
+                  filled: true,
+                  fillColor: isDark
+                      ? const Color(0xFF232A18)
+                      : const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pilih Cepat:',
+                style: _body(ts, 11.5, FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: quickNotes.map((qn) {
+                  return InkWell(
+                    onTap: () => noteCtrl.text = qn,
+                    borderRadius: BorderRadius.circular(99),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        qn,
+                        style: _body(tp, 11, FontWeight.w600),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (_driverNote.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                setState(() => _driverNote = '');
+                setSheet(() {});
+                Navigator.pop(dlgCtx);
+              },
+              child: const Text(
+                'Hapus',
+                style: TextStyle(color: Colors.redAccent),
+              ),
             ),
-            Text(
-              'Opsi Lainnya',
-              style: _body(textColorPrimary, 18, FontWeight.bold),
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx),
+            child: Text('Batal', style: TextStyle(color: ts)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimary,
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Fitur tambahan untuk perjalananmu',
-              style: _body(textColorSecondary, 13, FontWeight.normal),
+            onPressed: () {
+              setState(() => _driverNote = noteCtrl.text.trim());
+              setSheet(() {});
+              Navigator.pop(dlgCtx);
+            },
+            child: const Text(
+              'Simpan',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
-            _lainnyaItem(
-              icon: Icons.note_alt_outlined,
-              iconColor: const Color(0xFF2B6CB0),
-              title: 'Catatan untuk Driver',
-              subtitle: 'Tambahkan instruksi khusus',
-              isDark: isDark,
-              textColorPrimary: textColorPrimary,
-              textColorSecondary: textColorSecondary,
-              borderColor: borderColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openVoucherSheet(
+    BuildContext sheetCtx,
+    StateSetter setSheet,
+    bool isDark,
+    Color tp,
+    Color ts,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    const vouchers = [
+      {
+        'title': 'Kampus Hemat USU',
+        'code': 'KAMPUSHEMAT',
+        'discount': 2000,
+        'desc': 'Potongan Rp 2.000 untuk perjalanan area Kampus USU',
+      },
+      {
+        'title': 'Promo GasRide Mahasiswa',
+        'code': 'GASRIDE3K',
+        'discount': 3000,
+        'desc': 'Potongan langsung Rp 3.000 khusus mahasiswa aktif',
+      },
+      {
+        'title': 'Voucher Perpustakaan & Fakultas',
+        'code': 'PERPUSUSU',
+        'discount': 2500,
+        'desc': 'Hemat Rp 2.500 antar jemput gedung fakultas',
+      },
+    ];
+
+    showDialog(
+      context: sheetCtx,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          'Pilih Voucher Promo',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...vouchers.map((v) {
+                final title = v['title'] as String;
+                final disc = v['discount'] as int;
+                final desc = v['desc'] as String;
+                final isSelected = _selectedVoucherTitle == title;
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedVoucherTitle = title;
+                      _voucherDiscount = disc;
+                    });
+                    setSheet(() {});
+                    Navigator.pop(dlgCtx);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? kPrimary.withValues(alpha: 0.22)
+                          : (isDark
+                                ? const Color(0xFF232A18)
+                                : const Color(0xFFF8FAFC)),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? kPrimary : borderColor,
+                        width: isSelected ? 1.8 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.local_offer_rounded,
+                          color: Color(0xFFE53E3E),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$title (-Rp ${WalletService.formatRupiah(disc)})',
+                                style: _body(tp, 13, FontWeight.bold),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                desc,
+                                style: _body(ts, 11, FontWeight.normal),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: kSecondaryGreen,
+                            size: 18,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          if (_selectedVoucherTitle != null)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedVoucherTitle = null;
+                  _voucherDiscount = 0;
+                });
+                setSheet(() {});
+                Navigator.pop(dlgCtx);
+              },
+              child: const Text(
+                'Lepas Voucher',
+                style: TextStyle(color: Colors.redAccent),
+              ),
             ),
-            const SizedBox(height: 10),
-            _lainnyaItem(
-              icon: Icons.discount_outlined,
-              iconColor: const Color(0xFFE53E3E),
-              title: 'Gunakan Voucher',
-              subtitle: 'Hemat lebih banyak',
-              isDark: isDark,
-              textColorPrimary: textColorPrimary,
-              textColorSecondary: textColorSecondary,
-              borderColor: borderColor,
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx),
+            child: Text('Tutup', style: TextStyle(color: ts)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openOtherPassengerDialog(
+    BuildContext sheetCtx,
+    StateSetter setSheet,
+    bool isDark,
+    Color tp,
+    Color ts,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    final nameCtrl = TextEditingController(text: _otherPassengerInfo ?? '');
+    showDialog(
+      context: sheetCtx,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          'Pesan untuk Orang Lain',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        content: TextField(
+          controller: nameCtrl,
+          style: _body(tp, 14, FontWeight.w500),
+          decoration: InputDecoration(
+            hintText: 'Nama & No. HP teman (mis: Rina - 0812xxx)',
+            hintStyle: _body(ts, 13, FontWeight.normal),
+            filled: true,
+            fillColor: isDark
+                ? const Color(0xFF232A18)
+                : const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: borderColor),
             ),
-            const SizedBox(height: 10),
-            _lainnyaItem(
-              icon: Icons.group_outlined,
-              iconColor: const Color(0xFF7C3AED),
-              title: 'Pesan untuk Orang Lain',
-              subtitle: 'Kirim pesanan ke kontak',
-              isDark: isDark,
-              textColorPrimary: textColorPrimary,
-              textColorSecondary: textColorSecondary,
-              borderColor: borderColor,
+          ),
+        ),
+        actions: [
+          if (_otherPassengerInfo != null)
+            TextButton(
+              onPressed: () {
+                setState(() => _otherPassengerInfo = null);
+                setSheet(() {});
+                Navigator.pop(dlgCtx);
+              },
+              child: const Text(
+                'Untuk Saya Sendiri',
+                style: TextStyle(color: Colors.redAccent),
+              ),
             ),
-            const SizedBox(height: 10),
-            _lainnyaItem(
-              icon: Icons.schedule_rounded,
-              iconColor: const Color(0xFF059669),
-              title: 'Jadwalkan Perjalanan',
-              subtitle: 'Atur waktu penjemputan',
-              isDark: isDark,
-              textColorPrimary: textColorPrimary,
-              textColorSecondary: textColorSecondary,
-              borderColor: borderColor,
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx),
+            child: Text('Batal', style: TextStyle(color: ts)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimary,
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
-            const SizedBox(height: 20),
+            onPressed: () {
+              final val = nameCtrl.text.trim();
+              setState(() => _otherPassengerInfo = val.isEmpty ? null : val);
+              setSheet(() {});
+              Navigator.pop(dlgCtx);
+            },
+            child: const Text(
+              'Simpan',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openScheduleSheet(
+    BuildContext sheetCtx,
+    StateSetter setSheet,
+    bool isDark,
+    Color tp,
+    Color ts,
+    Color cardBg,
+    Color borderColor,
+  ) {
+    const scheduleOptions = [
+      'Sekarang (Langsung Dijemput)',
+      '15 Menit Lagi',
+      '30 Menit Lagi',
+      '1 Jam Lagi',
+      'Selesai Kelas Sore (16:00 WIB)',
+    ];
+
+    showDialog(
+      context: sheetCtx,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          'Jadwalkan Perjalanan',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...scheduleOptions.map((opt) {
+              final isNow = opt.startsWith('Sekarang');
+              final isSelected =
+                  (isNow && _scheduledTimeLabel == null) ||
+                  (_scheduledTimeLabel == opt);
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.access_time_rounded,
+                  color: isSelected ? kSecondaryGreen : ts,
+                  size: 20,
+                ),
+                title: Text(
+                  opt,
+                  style: _body(
+                    tp,
+                    13.5,
+                    isSelected ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+                trailing: isSelected
+                    ? const Icon(
+                        Icons.check_circle_rounded,
+                        color: kSecondaryGreen,
+                        size: 18,
+                      )
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _scheduledTimeLabel = isNow ? null : opt;
+                  });
+                  setSheet(() {});
+                  Navigator.pop(dlgCtx);
+                },
+              );
+            }),
+            const Divider(),
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(
+                Icons.edit_calendar_rounded,
+                color: Color(0xFF059669),
+                size: 20,
+              ),
+              title: Text(
+                'Pilih Jam Penjemputan Manual...',
+                style: _body(const Color(0xFF059669), 13.5, FontWeight.bold),
+              ),
+              onTap: () async {
+                final picked = await showTimePicker(
+                  context: dlgCtx,
+                  initialTime: TimeOfDay.now(),
+                );
+                if (picked != null && mounted) {
+                  final hh = picked.hour.toString().padLeft(2, '0');
+                  final mm = picked.minute.toString().padLeft(2, '0');
+                  setState(() {
+                    _scheduledTimeLabel = 'Pukul $hh:$mm WIB';
+                  });
+                  setSheet(() {});
+                  if (dlgCtx.mounted) Navigator.pop(dlgCtx);
+                }
+              },
+            ),
           ],
         ),
       ),
@@ -853,48 +1396,66 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     required Color textColorPrimary,
     required Color textColorSecondary,
     required Color borderColor,
+    required VoidCallback onTap,
+    bool isActive = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF232A18) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(13),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isActive
+              ? iconColor.withValues(alpha: isDark ? 0.16 : 0.08)
+              : (isDark ? const Color(0xFF232A18) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isActive ? iconColor : borderColor,
+            width: isActive ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: _body(textColorPrimary, 14, FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: _body(textColorSecondary, 12, FontWeight.normal),
-                ),
-              ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: _body(textColorPrimary, 14, FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: _body(
+                      isActive ? iconColor : textColorSecondary,
+                      12,
+                      isActive ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: textColorSecondary,
-            size: 20,
-          ),
-        ],
+            Icon(
+              isActive
+                  ? Icons.check_circle_rounded
+                  : Icons.chevron_right_rounded,
+              color: isActive ? iconColor : textColorSecondary,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -943,14 +1504,11 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                         ),
                         GestureDetector(
                           onTap: widget.onShowHistory,
-                          child: Container(
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
+                              horizontal: 4,
                               vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kPrimary.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(99),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -965,8 +1523,8 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                                   'Riwayat',
                                   style: _body(
                                     textColorPrimary,
-                                    12,
-                                    FontWeight.bold,
+                                    13,
+                                    FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -1016,7 +1574,7 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                         const SizedBox(height: 8),
                         _locationField(
                           icon: Icons.flag_rounded,
-                          iconColor: Colors.deepOrange,
+                          iconColor: kSecondaryGreen,
                           hint: 'Pilih titik pengantaran...',
                           controller: _destinationController,
                           inputBg: inputBg,
@@ -1026,42 +1584,9 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                           onTapMapPicker: () =>
                               _openMapLocationPicker(isPickup: false),
                         ),
-                        const SizedBox(height: 12),
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: kPrimary.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _isRealGps
-                                    ? Icons.gps_fixed
-                                    : Icons.route_rounded,
-                                size: 15,
-                                color: isDark ? kPrimary : kBgDark,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Estimasi Jarak: ${_routeDistanceKm.toStringAsFixed(1)} km (~$_routeEtaMinutes mnt)',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? kPrimary : kBgDark,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: 16),
 
-                        // Pilihan Cepat Lokasi Kampus USU & Medan
+                        // Pilihan Cepat Lokasi Kampus USU & Medan (Slide ke Samping)
                         Text(
                           'PILIH CEPAT TITIK KAMPUS USU & MEDAN',
                           style: _body(
@@ -1071,63 +1596,128 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                             ls: 0.8,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: _campusQuickLocations.map((loc) {
-                            final isCurrent =
-                                _destinationController.text.trim() == loc;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _customTappedDestPos = null;
-                                  _customTappedDestAddress = '';
-                                  _destinationController.text = loc;
-                                });
-                                _refreshPreviewRoute();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 11,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isCurrent ? kPrimary : inputBg,
-                                  borderRadius: BorderRadius.circular(99),
-                                  border: Border.all(
-                                    color: isCurrent ? kPrimary : borderColor,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.place_rounded,
-                                      size: 13,
-                                      color: isCurrent
-                                          ? Colors.black
-                                          : kSecondaryGreen,
+                        const SizedBox(height: 10),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            children: _campusQuickLocations.map((loc) {
+                              final isCurrent =
+                                  _destinationController.text.trim() == loc;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _customTappedDestPos = null;
+                                      _customTappedDestAddress = '';
+                                      _destinationController.text = loc;
+                                    });
+                                    _refreshPreviewRoute();
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 13,
+                                      vertical: 8,
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      loc,
-                                      style: TextStyle(
-                                        color: isCurrent
-                                            ? Colors.black
-                                            : textColorPrimary,
-                                        fontSize: 11.5,
-                                        fontWeight: isCurrent
-                                            ? FontWeight.bold
-                                            : FontWeight.w500,
+                                    decoration: BoxDecoration(
+                                      color: isCurrent ? kPrimary : inputBg,
+                                      borderRadius: BorderRadius.circular(99),
+                                      border: Border.all(
+                                        color:
+                                            isCurrent ? kPrimary : borderColor,
                                       ),
                                     ),
-                                  ],
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.place_rounded,
+                                          size: 14,
+                                          color: isCurrent
+                                              ? Colors.black
+                                              : kSecondaryGreen,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          loc,
+                                          style: TextStyle(
+                                            color: isCurrent
+                                                ? Colors.black
+                                                : textColorPrimary,
+                                            fontSize: 12,
+                                            fontWeight: isCurrent
+                                                ? FontWeight.bold
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList(),
+                          ),
                         ),
+                        if (_driverNote.isNotEmpty ||
+                            _selectedVoucherTitle != null ||
+                            _otherPassengerInfo != null ||
+                            _scheduledTimeLabel != null) ...[
+                          const SizedBox(height: 14),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: [
+                                if (_selectedVoucherTitle != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      '🏷️ $_selectedVoucherTitle (-Rp ${WalletService.formatRupiah(_voucherDiscount)})',
+                                      style: _body(
+                                        kSecondaryGreen,
+                                        12,
+                                        FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                if (_scheduledTimeLabel != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      '🕒 $_scheduledTimeLabel',
+                                      style: _body(
+                                        textColorPrimary,
+                                        12,
+                                        FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                if (_driverNote.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      '📝 $_driverNote',
+                                      style: _body(
+                                        textColorSecondary,
+                                        12,
+                                        FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                if (_otherPassengerInfo != null)
+                                  Text(
+                                    '👤 $_otherPassengerInfo',
+                                    style: _body(
+                                      textColorSecondary,
+                                      12,
+                                      FontWeight.w500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1235,75 +1825,55 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // ── Fare + Time strip (Sinkron Tarif Admin Real-Time) ──
+                // ── Harga & Jarak (Simpel tanpa cover box & tanpa teks Tarif Admin) ──
                 ValueListenableBuilder<int>(
                   valueListenable: FarePricingService.versionNotifier,
                   builder: (context, _, _) {
-                    final int dynamicFare = _selectedService == 1
+                    final int baseFare = _selectedService == 1
                         ? FarePricingService.calculateCarFare(_routeDistanceKm)
                         : FarePricingService.calculateMotorFare(_routeDistanceKm);
+                    final int finalFare =
+                        math.max(1000, baseFare - _voucherDiscount);
                     final String displayFare =
-                        FarePricingService.formatRupiah(dynamicFare);
-                    final int oneKmRate =
-                        FarePricingService.effectiveOneKmPrice;
+                        FarePricingService.formatRupiah(finalFare);
 
-                    return Container(
+                    return Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(14),
+                        horizontal: 4,
+                        vertical: 4,
                       ),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(
-                            Icons.payments_outlined,
-                            color: kPrimary,
-                            size: 20,
+                          Row(
+                            children: [
+                              Text(
+                                displayFare,
+                                style: _body(
+                                  textColorPrimary,
+                                  18,
+                                  FontWeight.bold,
+                                ),
+                              ),
+                              if (_voucherDiscount > 0) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  FarePricingService.formatRupiah(baseFare),
+                                  style: TextStyle(
+                                    color: textColorSecondary,
+                                    fontSize: 13,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(width: 8),
                           Text(
-                            displayFare,
-                            style: _body(textColorPrimary, 16, FontWeight.bold),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 18,
-                            margin: const EdgeInsets.symmetric(horizontal: 10),
-                            color: borderColor,
-                          ),
-                          Icon(
-                            Icons.route_rounded,
-                            color: textColorSecondary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${_routeDistanceKm.toStringAsFixed(1)} km',
+                            '${_routeDistanceKm.toStringAsFixed(1)} km · ~$_routeEtaMinutes mnt',
                             style: _body(
                               textColorSecondary,
-                              12.5,
+                              13,
                               FontWeight.w600,
-                            ),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 18,
-                            margin: const EdgeInsets.symmetric(horizontal: 10),
-                            color: borderColor,
-                          ),
-                          Expanded(
-                            child: Text(
-                              'Tarif Admin (1 km = ${FarePricingService.formatRupiah(oneKmRate)})',
-                              style: _body(
-                                kSecondaryGreen,
-                                11.5,
-                                FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -1483,31 +2053,10 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
                 style: _body(textColorPrimary, 14, FontWeight.w600),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(99),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.map_outlined,
-                    size: 14,
-                    color: Color(0xFF0F172A),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Peta',
-                    style: _body(
-                      const Color(0xFF0F172A),
-                      11,
-                      FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            Icon(
+              Icons.map_outlined,
+              size: 20,
+              color: textColorSecondary,
             ),
           ],
         ),
@@ -1712,8 +2261,24 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
             return t.contains(query) || s.contains(query);
           }).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color kPickerBg = isDark ? kBgDark : kBgLight;
+    final Color kPickerSurface = isDark ? const Color(0xFF1C2414) : Colors.white;
+    final Color kPickerBorder = isDark
+        ? const Color(0xFF2A3518)
+        : const Color(0xFFE8EDE0);
+    const Color kPickerAccent = kPrimary; // 0xFFC0F637 (Palet Utama GasKampus)
+    const Color kPickerAccentDeep = Color(0xFF8DBF1A);
+    const Color kPickerOnAccent = Color(0xFF0A0F02);
+    final Color kPickerTextPrimary = isDark
+        ? Colors.white
+        : const Color(0xFF0F1A02);
+    final Color kPickerTextSecondary = isDark
+        ? const Color(0xFF8A9E70)
+        : const Color(0xFF6B7A5A);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF14181C),
+      backgroundColor: kPickerBg,
       body: Stack(
         children: [
           // ── 1. Full-Screen Interactive Map ──
@@ -1728,7 +2293,7 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                 _moveSelectionTo(latLng);
               },
               markers: [
-                // Marker Titik Terpilih (gaya Pin seperti gambar referensi)
+                // Marker Titik Terpilih (Sesuai Palet Utama GasKampus kPrimary)
                 Marker(
                   point: _selectedPos,
                   width: 64,
@@ -1741,25 +2306,25 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF67A3D9),
+                          color: kPickerAccent,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white,
-                            width: 3,
+                            color: kPickerOnAccent,
+                            width: 2.5,
                           ),
-                          boxShadow: const [
+                          boxShadow: [
                             BoxShadow(
-                              color: Colors.black45,
+                              color: Colors.black.withValues(alpha: 0.22),
                               blurRadius: 10,
-                              offset: Offset(0, 4),
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: const Center(
                           child: Icon(
                             Icons.circle,
-                            color: Colors.white,
-                            size: 12,
+                            color: kPickerOnAccent,
+                            size: 11,
                           ),
                         ),
                       ),
@@ -1767,14 +2332,8 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                         width: 4,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: kPickerOnAccent,
                           borderRadius: BorderRadius.circular(2),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black38,
-                              blurRadius: 4,
-                            ),
-                          ],
                         ),
                       ),
                     ],
@@ -1784,7 +2343,7 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
             ),
           ),
 
-          // ── 2. Top Search Bar (Mirip Gambar Referensi) ──
+          // ── 2. Top Search Bar (Sesuai Palet Aplikasi) ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
             left: 16,
@@ -1793,36 +2352,37 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  height: 54,
+                  height: 52,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF21262D).withValues(alpha: 0.96),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
+                    color: kPickerSurface,
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: kPickerBorder),
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black38,
+                        color: Colors.black.withValues(alpha: 0.08),
                         blurRadius: 12,
-                        offset: Offset(0, 4),
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
-                          size: 20,
+                          color: kPickerTextPrimary,
+                          size: 19,
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
+                          style: TextStyle(
+                            color: kPickerTextPrimary,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
                           ),
                           onTap: () => setState(() => _showSuggestions = true),
                           onChanged: (_) =>
@@ -1832,9 +2392,9 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                             hintText: widget.isPickup
                                 ? 'Masukkan alamat untuk penjemputan...'
                                 : 'Masukkan alamat untuk pengantaran...',
-                            hintStyle: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 14.5,
+                            hintStyle: TextStyle(
+                              color: kPickerTextSecondary,
+                              fontSize: 14,
                             ),
                             border: InputBorder.none,
                           ),
@@ -1842,9 +2402,9 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                       ),
                       if (_searchController.text.isNotEmpty)
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close_rounded,
-                            color: Colors.white70,
+                            color: kPickerTextSecondary,
                             size: 20,
                           ),
                           onPressed: () {
@@ -1858,8 +2418,8 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                         IconButton(
                           icon: const Icon(
                             Icons.search_rounded,
-                            color: Color(0xFF67A3D9),
-                            size: 22,
+                            color: kPickerAccentDeep,
+                            size: 21,
                           ),
                           onPressed: () =>
                               _onSearchSubmitted(_searchController.text),
@@ -1874,13 +2434,14 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                     margin: const EdgeInsets.only(top: 8),
                     constraints: const BoxConstraints(maxHeight: 230),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF21262D).withValues(alpha: 0.98),
+                      color: kPickerSurface,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
+                      border: Border.all(color: kPickerBorder),
+                      boxShadow: [
                         BoxShadow(
-                          color: Colors.black45,
+                          color: Colors.black.withValues(alpha: 0.10),
                           blurRadius: 14,
-                          offset: Offset(0, 6),
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
@@ -1892,25 +2453,25 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                           dense: true,
                           leading: const CircleAvatar(
                             radius: 16,
-                            backgroundColor: Color(0xFF16A34A),
+                            backgroundColor: kPickerAccent,
                             child: Icon(
                               Icons.my_location_rounded,
-                              color: Colors.white,
+                              color: kPickerOnAccent,
                               size: 16,
                             ),
                           ),
-                          title: const Text(
+                          title: Text(
                             'Gunakan Lokasi Saya Saat Ini (GPS)',
                             style: TextStyle(
-                              color: kPrimary,
+                              color: kPickerTextPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 13.5,
                             ),
                           ),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Deteksi otomatis posisi perangkat saat ini',
                             style: TextStyle(
-                              color: Colors.white60,
+                              color: kPickerTextSecondary,
                               fontSize: 11.5,
                             ),
                           ),
@@ -1919,31 +2480,27 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                             _useCurrentDeviceGps();
                           },
                         ),
-                        const Divider(color: Colors.white12, height: 1),
+                        Divider(color: kPickerBorder, height: 1),
                         ...filteredPresets.map((item) {
                           return ListTile(
                             dense: true,
-                            leading: const CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Color(0xFF30363D),
-                              child: Icon(
-                                Icons.place_rounded,
-                                color: Color(0xFF67A3D9),
-                                size: 16,
-                              ),
+                            leading: Icon(
+                              Icons.place_rounded,
+                              color: kPickerAccentDeep,
+                              size: 20,
                             ),
                             title: Text(
                               item['title'] as String,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: kPickerTextPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
                               ),
                             ),
                             subtitle: Text(
                               item['sub'] as String,
-                              style: const TextStyle(
-                                color: Colors.white54,
+                              style: TextStyle(
+                                color: kPickerTextSecondary,
                                 fontSize: 11,
                               ),
                             ),
@@ -1967,11 +2524,14 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
           // ── 3. Floating Right Buttons (+ , - , GPS) ──
           Positioned(
             right: 16,
-            bottom: 245,
+            bottom: 225,
             child: Column(
               children: [
                 _roundControlBtn(
                   icon: Icons.add_rounded,
+                  surfaceColor: kPickerSurface,
+                  borderColor: kPickerBorder,
+                  iconColor: kPickerTextPrimary,
                   onTap: () {
                     final z = (_mapController.camera.zoom + 1.0).clamp(
                       11.0,
@@ -1983,6 +2543,9 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                 const SizedBox(height: 10),
                 _roundControlBtn(
                   icon: Icons.remove_rounded,
+                  surfaceColor: kPickerSurface,
+                  borderColor: kPickerBorder,
+                  iconColor: kPickerTextPrimary,
                   onTap: () {
                     final z = (_mapController.camera.zoom - 1.0).clamp(
                       11.0,
@@ -1994,14 +2557,16 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                 const SizedBox(height: 10),
                 _roundControlBtn(
                   icon: Icons.near_me_rounded,
-                  iconColor: const Color(0xFF67A3D9),
+                  surfaceColor: kPickerSurface,
+                  borderColor: kPickerBorder,
+                  iconColor: kPickerAccentDeep,
                   onTap: _useCurrentDeviceGps,
                 ),
               ],
             ),
           ),
 
-          // ── 4. Bottom Sheet Card (Mirip Gambar Referensi: Judul + Alamat + Tombol Selesai) ──
+          // ── 4. Bottom Sheet Card (Simpel tanpa cover box di dalam & Palet GasKampus) ──
           Positioned(
             left: 0,
             right: 0,
@@ -2009,18 +2574,23 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
             child: Container(
               padding: EdgeInsets.fromLTRB(
                 22,
-                22,
+                20,
                 22,
                 MediaQuery.of(context).padding.bottom + 20,
               ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF21262D),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: kPickerSurface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+                border: Border(
+                  top: BorderSide(color: kPickerBorder, width: 1),
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black54,
-                    blurRadius: 20,
-                    offset: Offset(0, -6),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, -4),
                   ),
                 ],
               ),
@@ -2033,54 +2603,61 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                     children: [
                       Text(
                         widget.isPickup ? 'Lokasi Jemput' : 'Tujuan',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 21,
+                        style: TextStyle(
+                          color: kPickerTextPrimary,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      TextButton.icon(
-                        onPressed: _useCurrentDeviceGps,
-                        style: TextButton.styleFrom(
-                          foregroundColor: kPrimary,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        icon: const Icon(Icons.my_location_rounded, size: 15),
-                        label: const Text(
-                          'Lokasi Saat Ini',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      GestureDetector(
+                        onTap: _useCurrentDeviceGps,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(
+                              Icons.my_location_rounded,
+                              size: 15,
+                              color: kPickerAccentDeep,
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'Lokasi Saat Ini',
+                              style: TextStyle(
+                                color: kPickerAccentDeep,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Container(
                         width: 40,
                         height: 40,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF67A3D9),
+                          color: kPickerAccent,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           widget.isPickup
                               ? Icons.my_location_rounded
                               : Icons.flag_rounded,
-                          color: Colors.white,
+                          color: kPickerOnAccent,
                           size: 20,
                         ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: _isGeocoding
-                            ? const Text(
+                            ? Text(
                                 'Mendeteksi nama jalan...',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: kPickerTextSecondary,
                                   fontSize: 15,
                                 ),
                               )
@@ -2089,8 +2666,8 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                                 children: [
                                   Text(
                                     _placeTitle,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: kPickerTextPrimary,
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -2100,8 +2677,8 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                                   const SizedBox(height: 3),
                                   Text(
                                     _streetSubtitle,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
+                                    style: TextStyle(
+                                      color: kPickerTextSecondary,
                                       fontSize: 13.5,
                                     ),
                                     maxLines: 1,
@@ -2112,10 +2689,10 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
-                    height: 54,
+                    height: 52,
                     child: ElevatedButton(
                       onPressed: () {
                         final finalAddr = _placeTitle.trim().isNotEmpty
@@ -2130,8 +2707,8 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFACC15),
-                        foregroundColor: const Color(0xFF0F172A),
+                        backgroundColor: kPickerAccent,
+                        foregroundColor: kPickerOnAccent,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(99),
@@ -2140,7 +2717,7 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
                       child: const Text(
                         'Selesai',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -2158,19 +2735,23 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
   Widget _roundControlBtn({
     required IconData icon,
     required VoidCallback onTap,
-    Color iconColor = Colors.white70,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Color iconColor,
   }) {
     return Material(
-      color: const Color(0xFF2D333B).withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      elevation: 4,
+      color: surfaceColor,
+      shape: CircleBorder(
+        side: BorderSide(color: borderColor, width: 1),
+      ),
+      elevation: 2,
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, color: iconColor, size: 22),
+          width: 46,
+          height: 46,
+          child: Icon(icon, color: iconColor, size: 21),
         ),
       ),
     );
@@ -2182,6 +2763,8 @@ class _ActiveOrderScreen extends StatefulWidget {
   final String destinationAddress;
   final String serviceLabel;
   final String fareLabel;
+  final int fareAmount;
+  final String paymentMethod;
   final LatLng? initialPickupLatLng;
   final LatLng? initialDropoffLatLng;
   final VoidCallback onBack;
@@ -2192,6 +2775,8 @@ class _ActiveOrderScreen extends StatefulWidget {
     this.destinationAddress = 'Gedung Biro Rektor USU',
     this.serviceLabel = 'GasRide',
     this.fareLabel = 'Rp 5.000',
+    this.fareAmount = 5000,
+    this.paymentMethod = 'GasPay',
     this.initialPickupLatLng,
     this.initialDropoffLatLng,
     required this.onBack,
@@ -2201,6 +2786,8 @@ class _ActiveOrderScreen extends StatefulWidget {
   @override
   State<_ActiveOrderScreen> createState() => _ActiveOrderScreenState();
 }
+
+enum _RidePhase { searching, found, otw, pickupArrived, onTrip, arrived }
 
 class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
     with SingleTickerProviderStateMixin {
@@ -2218,9 +2805,20 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
   List<LatLng> _simulationPath = [];
   int _simulationIndex = 0;
 
+  // Fase pesanan: mencari driver -> ditemukan -> OTW -> tiba di jemput -> antar -> selesai
+  _RidePhase _phase = _RidePhase.searching;
+  List<LatLng> _otwPath = [];
+  int _otwIndex = 0;
+  double _tripDistanceKm = 0.8;
+  int _tripEtaMinutes = 3;
+  Timer? _phaseTimer;
+  Timer? _otwTimer;
+
   bool _isMapReady = false;
   bool _isSimulating = false;
   bool _hasArrived = false;
+  bool _hasDeductedGasPay = false;
+  int? _remainingWalletBalance;
   double _distanceKm = 0.8;
   int _etaMinutes = 3;
   Timer? _simulationTimer;
@@ -2239,48 +2837,147 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
 
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
     _pulseAnimation = Tween<double>(begin: 0.9, end: 1.25).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      CurvedAnimation(
+        parent: _pulseController,
+        curve: Curves.easeInOutSine,
+      ),
     );
 
     _initUserLocationAndRoute();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _showDriverOtwBottomSheet();
-      }
-    });
+    // Fase 1: animasi menunggu driver ditemukan
+    _phaseTimer = Timer(const Duration(milliseconds: 4500), _onDriverFound);
   }
 
-  void _showDriverOtwBottomSheet() {
+  String get _phaseTitle {
+    switch (_phase) {
+      case _RidePhase.searching:
+        return 'Mencari driver terdekat...';
+      case _RidePhase.found:
+        return 'Driver ditemukan!';
+      case _RidePhase.otw:
+        return 'Driver sedang menuju lokasimu';
+      case _RidePhase.pickupArrived:
+        return 'Driver sudah tiba di lokasi jemput';
+      case _RidePhase.onTrip:
+        return 'Driver sedang mengantar ke tujuan';
+      case _RidePhase.arrived:
+        return 'Perjalanan telah selesai!';
+    }
+  }
+
+  String get _etaChipLabel {
+    switch (_phase) {
+      case _RidePhase.searching:
+        return 'Mencari';
+      case _RidePhase.pickupArrived:
+      case _RidePhase.arrived:
+        return 'Tiba';
+      default:
+        return '$_etaMinutes Menit';
+    }
+  }
+
+  String get _topPillLabel {
+    switch (_phase) {
+      case _RidePhase.searching:
+        return 'Mencari driver...';
+      case _RidePhase.found:
+        return 'Driver ditemukan';
+      case _RidePhase.otw:
+        return 'Driver OTW · ${_distanceKm.toStringAsFixed(1)} km';
+      case _RidePhase.pickupArrived:
+        return 'Driver sudah tiba';
+      case _RidePhase.onTrip:
+        return '${widget.serviceLabel} · ${_distanceKm.toStringAsFixed(1)} km';
+      case _RidePhase.arrived:
+        return 'Sampai di Tujuan';
+    }
+  }
+
+  List<LatLng> get _activePolyline {
+    switch (_phase) {
+      case _RidePhase.searching:
+        return const [];
+      case _RidePhase.found:
+      case _RidePhase.otw:
+        if (_otwPath.length < 2) return const [];
+        return _otwPath.sublist(math.min(_otwIndex, _otwPath.length - 1));
+      case _RidePhase.pickupArrived:
+        return _routePoints;
+      case _RidePhase.onTrip:
+      case _RidePhase.arrived:
+        return _isSimulating && _simulationIndex > 0
+            ? _simulationPath.sublist(
+                math.min(_simulationIndex, _simulationPath.length - 1),
+              )
+            : _routePoints;
+    }
+  }
+
+  /// Fase 2: driver ditemukan -> munculkan pop up "driver OTW".
+  Future<void> _onDriverFound() async {
+    if (!mounted) return;
+    // Titik awal driver sekitar 700 m dari lokasi penjemputan.
+    final start = LatLng(
+      _pickupLatLng.latitude + 0.0045,
+      _pickupLatLng.longitude - 0.0032,
+    );
+    final res = await MapRouteService.fetchRoadRoute(start, _pickupLatLng);
+    if (!mounted) return;
+    final dense = MapRouteService.densifyRoutePoints(res.points);
+    final path = dense.length >= 2 ? dense : [start, _pickupLatLng];
+    setState(() {
+      _otwPath = path;
+      _otwIndex = 0;
+      _driverLatLng = path.first;
+      _driverHeading = MapRouteService.calculateBearingDegrees(
+        path.first,
+        path[1],
+      );
+      _distanceKm = res.distanceKm;
+      _etaMinutes = res.durationMinutes;
+      _phase = _RidePhase.found;
+    });
+    _fitBounds();
+    AppNotificationStore.add(
+      title: 'Driver ditemukan',
+      message: 'Budi Santoso (BK 1234 GKS) sedang OTW ke ${widget.pickupAddress}.',
+      icon: Icons.two_wheeler_rounded,
+      color: const Color(0xFF64748B),
+    );
+    await _showDriverOtwBottomSheet();
+    if (!mounted) return;
+    _startOtwPhase();
+  }
+
+  Future<void> _showDriverOtwBottomSheet() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? const Color(0xFF1A2210) : Colors.white;
     final tp = isDark ? Colors.white : const Color(0xFF0F172A);
     final ts = isDark ? Colors.white70 : const Color(0xFF64748B);
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        // Tutup otomatis agar fase OTW langsung berjalan
+        Timer(const Duration(milliseconds: 3800), () {
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        });
         return Container(
           padding: EdgeInsets.fromLTRB(
             24,
-            16,
+            14,
             24,
             MediaQuery.of(ctx).padding.bottom + 24,
           ),
           decoration: BoxDecoration(
             color: sheetBg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black38,
-                blurRadius: 24,
-                offset: Offset(0, -6),
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2293,119 +2990,192 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
-              const SizedBox(height: 20),
-              Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.two_wheeler_rounded,
-                  color: Color(0xFF0F172A),
-                  size: 36,
-                ),
+              const SizedBox(height: 22),
+              const Icon(
+                Icons.two_wheeler_rounded,
+                color: kSecondaryGreen,
+                size: 52,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
-                'Driver Sudah Ditemukan!',
+                'Driver Ditemukan!',
                 textAlign: TextAlign.center,
                 style: _body(tp, 20, FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                'Tunggu sebentar ya, driver lagi OTW ke lokasi penjemputan kamu!',
+                'Tunggu sebentar ya, driver lagi OTW ke lokasi penjemputan kamu.',
                 textAlign: TextAlign.center,
                 style: _body(ts, 14, FontWeight.w500, h: 1.4),
               ),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF232A18)
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person_rounded, color: tp, size: 26),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Budi Santoso • 4.9 ★',
-                            style: _body(tp, 14.5, FontWeight.bold),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Honda Vario 125 • BK 1234 GKS',
-                            style: _body(ts, 12, FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: kPrimary,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        widget.fareLabel,
-                        style: _body(
-                          const Color(0xFF0F172A),
-                          12,
-                          FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    if (!_isSimulating) {
-                      _toggleSimulation();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: const Color(0xFF0F172A),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(99),
+              Row(
+                children: [
+                  Icon(Icons.person_rounded, color: tp, size: 30),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Budi Santoso',
+                          style: _body(tp, 14.5, FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Honda Vario 125 • BK 1234 GKS',
+                          style: _body(ts, 12, FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ),
-                  child: const Text(
-                    'Oke, Pantau Posisi Driver',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  Text(
+                    widget.fareLabel,
+                    style: _body(tp, 15, FontWeight.w800),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// Fase 3: driver bergerak menuju titik jemput.
+  void _startOtwPhase() {
+    setState(() => _phase = _RidePhase.otw);
+    _fitBounds();
+    _otwTimer?.cancel();
+    _otwTimer = Timer.periodic(const Duration(milliseconds: 420), (_) {
+      if (!mounted) return;
+      if (_otwIndex >= _otwPath.length - 1) {
+        _otwTimer?.cancel();
+        setState(() {
+          _phase = _RidePhase.pickupArrived;
+          _driverLatLng = _pickupLatLng;
+          _distanceKm = 0.0;
+          _etaMinutes = 0;
+        });
+        AppNotificationStore.add(
+          title: 'Driver sudah tiba',
+          message: 'Driver menunggu di ${widget.pickupAddress}.',
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFF64748B),
+        );
+        _phaseTimer = Timer(const Duration(milliseconds: 2200), _beginTrip);
+        return;
+      }
+
+      final step = math.min(2, _otwPath.length - 1 - _otwIndex);
+      final current = _otwPath[_otwIndex];
+      final next = _otwPath[_otwIndex + step];
+      final remainingKm = math.max(
+        0.0,
+        MapRouteService.distanceInMeters(next, _pickupLatLng) / 1000.0,
+      );
+      final remainingEta = remainingKm <= 0.05
+          ? 0
+          : math.max(1, ((remainingKm / 24.0) * 60.0).ceil());
+
+      setState(() {
+        _otwIndex += step;
+        _driverLatLng = next;
+        _driverHeading = MapRouteService.calculateBearingDegrees(current, next);
+        _distanceKm = remainingKm;
+        _etaMinutes = remainingEta;
+      });
+
+      if (_isMapReady) {
+        _mapController.move(next, math.max(_mapController.camera.zoom, 15.4));
+      }
+    });
+  }
+
+  /// Fase 4: setelah driver sampai di titik jemput, simulasi antar baru aktif.
+  void _beginTrip() {
+    if (!mounted) return;
+    if (_simulationPath.length < 2) {
+      _phaseTimer = Timer(const Duration(milliseconds: 800), _beginTrip);
+      return;
+    }
+    setState(() {
+      _phase = _RidePhase.onTrip;
+      _simulationIndex = 0;
+      _driverLatLng = _simulationPath.first;
+      _driverHeading = MapRouteService.calculateBearingDegrees(
+        _simulationPath.first,
+        _simulationPath[1],
+      );
+      _distanceKm = _tripDistanceKm;
+      _etaMinutes = _tripEtaMinutes;
+    });
+    _fitBounds();
+    _toggleSimulation();
+  }
+
+  void _onManualSimulationToggle() {
+    if (_phase == _RidePhase.onTrip) _toggleSimulation();
+  }
+
+  Widget _buildSearchingPanel(Color tp, Color ts) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 150,
+          child: AnimatedBuilder(
+            animation: _pulseController,
+            builder: (_, _) {
+              Widget ring(double offset) {
+                final t = (_pulseController.value + offset) % 1.0;
+                return Container(
+                  width: 40 + 110 * t,
+                  height: 40 + 110 * t,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: kSecondaryGreen.withValues(alpha: (1 - t) * 0.7),
+                      width: 2,
+                    ),
+                  ),
+                );
+              }
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  ring(0.0),
+                  ring(0.33),
+                  ring(0.66),
+                  const GasMoodFace(mood: GasMood.happy, size: 46),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Mencari driver terdekat...',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Radar menjangkau driver kampus yang aktif di sekitar ${widget.pickupAddress}',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: _body(ts, 12.5, FontWeight.w500, h: 1.35),
+        ),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: widget.onBack,
+          child: Text(
+            'Batalkan pesanan',
+            style: _body(Colors.redAccent, 13, FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2436,20 +3206,13 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
     );
     if (!mounted) return;
     final densified = MapRouteService.densifyRoutePoints(res.points);
-    final startDriver = densified.isNotEmpty ? densified.first : _pickupLatLng;
-    final nextPoint = densified.length > 1 ? densified[1] : _dropoffLatLng;
 
     setState(() {
       _routePoints = res.points;
       _simulationPath = densified;
       _simulationIndex = 0;
-      _driverLatLng = startDriver;
-      _driverHeading = MapRouteService.calculateBearingDegrees(
-        startDriver,
-        nextPoint,
-      );
-      _distanceKm = res.distanceKm;
-      _etaMinutes = res.durationMinutes;
+      _tripDistanceKm = res.distanceKm;
+      _tripEtaMinutes = res.durationMinutes;
     });
     _fitBounds();
   }
@@ -2476,18 +3239,11 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         setState(() {
           _isSimulating = false;
           _hasArrived = true;
+          _phase = _RidePhase.arrived;
           _distanceKm = 0.0;
           _etaMinutes = 0;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Driver telah tiba di tujuan: ${widget.destinationAddress}!',
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _handleArrivalAndShowPopup();
         return;
       }
 
@@ -2516,6 +3272,366 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         _mapController.move(next, targetZoom);
       }
     });
+  }
+
+  Future<void> _handleArrivalAndShowPopup() async {
+    // Jika metode pembayaran GasPay, potong otomatis dari saldo wallet user
+    if (widget.paymentMethod == 'GasPay' && !_hasDeductedGasPay) {
+      _hasDeductedGasPay = true;
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null && widget.fareAmount > 0) {
+          final db = FirebaseFirestore.instance;
+          final walletRef = db.collection('wallets').doc(uid);
+          final txRef = walletRef.collection('transactions').doc();
+          final now = DateTime.now().toIso8601String();
+
+          final newBal = await db.runTransaction<int>((tx) async {
+            final snap = await tx.get(walletRef);
+            final currentBal = (snap.data()?['balance'] as num?)?.toInt() ?? 0;
+            final updatedBal = math.max(0, currentBal - widget.fareAmount);
+            tx.set(
+              walletRef,
+              {'userId': uid, 'balance': updatedBal, 'updatedAt': now},
+              SetOptions(merge: true),
+            );
+            tx.set(txRef, {
+              'transactionId': txRef.id,
+              'walletId': uid,
+              'type': 'payment',
+              'amount': widget.fareAmount,
+              'description':
+                  'Pembayaran ${widget.serviceLabel} ke ${widget.destinationAddress}',
+              'createdAt': now,
+            });
+            return updatedBal;
+          });
+          if (mounted) setState(() => _remainingWalletBalance = newBal);
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF1A2210) : Colors.white;
+    final tp = isDark ? Colors.white : const Color(0xFF0F172A);
+    final ts = isDark ? Colors.white70 : const Color(0xFF64748B);
+    final borderCol = isDark ? const Color(0xFF2A3518) : const Color(0xFFE2E8F0);
+
+    // Rating bersifat opsional (3 wajah logo GasKampus, tanpa teks)
+    GasMood? selectedMood;
+    final ratingNoteCtrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dlgCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialog) {
+            return Dialog(
+              backgroundColor: dialogBg,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: kSecondaryGreen,
+                      size: 46,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Anda Telah Diantar Sampai ke Tujuan!',
+                      textAlign: TextAlign.center,
+                      style: _body(tp, 18, FontWeight.bold, h: 1.3),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.pickupAddress} → ${widget.destinationAddress}',
+                      textAlign: TextAlign.center,
+                      style: _body(ts, 12.5, FontWeight.w500),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (widget.paymentMethod == 'QRIS') ...[
+                      Text(
+                        'Scan QRIS di bawah ini untuk membayar:',
+                        textAlign: TextAlign.center,
+                        style: _body(ts, 12.5, FontWeight.w500),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildQrisCodeBox(widget.fareLabel),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Total Tagihan: ${widget.fareLabel}',
+                        style: _body(tp, 16, FontWeight.bold),
+                      ),
+                    ] else if (widget.paymentMethod == 'GasPay') ...[
+                      Text(
+                        'Terpotong otomatis dari saldo GasPay',
+                        textAlign: TextAlign.center,
+                        style: _body(ts, 13, FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '- ${widget.fareLabel}',
+                        style: _body(tp, 24, FontWeight.bold),
+                      ),
+                      if (_remainingWalletBalance != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sisa saldo: Rp ${WalletService.formatRupiah(_remainingWalletBalance!)}',
+                          style: _body(ts, 12, FontWeight.w500),
+                        ),
+                      ],
+                    ] else ...[
+                      Text(
+                        'Bayarlah ke driver sesuai harga:',
+                        textAlign: TextAlign.center,
+                        style: _body(ts, 13, FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.fareLabel,
+                        style: _body(tp, 26, FontWeight.bold),
+                      ),
+                    ],
+
+                    const SizedBox(height: 18),
+                    Divider(color: borderCol, height: 1),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: GasMood.values.map((m) {
+                        final isSelected = selectedMood == m;
+                        return GestureDetector(
+                          onTap: () => setDialog(
+                            () => selectedMood = isSelected ? null : m,
+                          ),
+                          behavior: HitTestBehavior.opaque,
+                          child: AnimatedScale(
+                            scale: isSelected ? 1.18 : 0.94,
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutBack,
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: GasMoodFace(
+                                mood: m,
+                                size: 58,
+                                active: selectedMood == null || isSelected,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (selectedMood != null) ...[
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: ratingNoteCtrl,
+                        maxLines: 2,
+                        style: _body(tp, 13, FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: 'Catatan untuk driver (opsional)',
+                          hintStyle: _body(ts, 12.5, FontWeight.normal),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: borderCol),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: borderCol),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: kSecondaryGreen,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dlgCtx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimary,
+                          foregroundColor: const Color(0xFF0F172A),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                        child: const Text(
+                          'Selesai',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // Dialog ditutup (lewat tombol Selesai maupun ketuk di luar kotak).
+    // Rating hanya disimpan bila pengguna memilih.
+    if (selectedMood != null) {
+      _saveDriverRating(selectedMood!.name, ratingNoteCtrl.text.trim());
+    }
+
+    if (!mounted) return;
+    _openPaymentSuccess();
+  }
+
+  Future<void> _saveDriverRating(String moodId, String note) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('driver_ratings')
+          .add({
+            'passengerId': FirebaseAuth.instance.currentUser?.uid,
+            'driverName': 'Budi Santoso',
+            'mood': moodId,
+            'note': note,
+            'serviceLabel': widget.serviceLabel,
+            'fareLabel': widget.fareLabel,
+            'paymentMethod': widget.paymentMethod,
+            'createdAt': DateTime.now().toIso8601String(),
+          })
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
+  }
+
+  void _openPaymentSuccess() {
+    final method = widget.paymentMethod;
+    AppNotificationStore.add(
+      title: 'Pembayaran berhasil',
+      message:
+          '${widget.serviceLabel} ke ${widget.destinationAddress} • ${widget.fareLabel} via $method',
+      icon: Icons.receipt_long_rounded,
+      color: const Color(0xFF64748B),
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => PaymentSuccessScreen(
+          receiverName: 'GasKampus ${widget.serviceLabel}',
+          receiverSub: 'Driver Budi Santoso • BK 1234 GKS',
+          amountLabel: widget.fareLabel,
+          details: [
+            MapEntry(
+              'Metode',
+              method == 'Tunai' ? 'Tunai ke driver' : method,
+            ),
+            MapEntry('Dari', widget.pickupAddress),
+            MapEntry('Tujuan', widget.destinationAddress),
+            if (method == 'GasPay' && _remainingWalletBalance != null)
+              MapEntry(
+                'Sisa saldo',
+                'Rp ${WalletService.formatRupiah(_remainingWalletBalance!)}',
+              ),
+          ],
+          onDone: widget.onShowHistory,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrisCodeBox(String fareLabel) {
+    // Representasi matriks QR Code 11x11 yang rapi & realistis untuk pembayaran QRIS
+    const List<List<int>> qrMatrix = [
+      [1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1],
+      [1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1],
+      [1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1],
+      [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+      [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1],
+      [0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+      [1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0],
+      [0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1],
+      [1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0],
+      [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1],
+      [1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'QRIS · GASKAMPUS USU',
+            style: TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: 154,
+            height: 154,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: qrMatrix.map((row) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: row.map((cell) {
+                    return Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: cell == 1
+                            ? const Color(0xFF0F172A)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    );
+                  }).toList(),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'NMID: ID1026000USU • $fareLabel',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _cycleMapStyle() {
@@ -2549,6 +3665,8 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
   @override
   void dispose() {
     _simulationTimer?.cancel();
+    _phaseTimer?.cancel();
+    _otwTimer?.cancel();
     _pulseController.dispose();
     _mapController.dispose();
     super.dispose();
@@ -2563,11 +3681,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         : const Color(0xFF64748B);
     final cardColor = isDark ? const Color(0xFF181E10) : Colors.white;
 
-    final remainingRoute = _isSimulating && _simulationIndex > 0
-        ? _simulationPath.sublist(
-            math.min(_simulationIndex, _simulationPath.length - 1),
-          )
-        : _routePoints;
+    final remainingRoute = _activePolyline;
 
     return Scaffold(
       backgroundColor: isDark ? kBgDark : kBgLight,
@@ -2608,11 +3722,49 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                     color: Colors.redAccent,
                     icon: Icons.flag_rounded,
                   ),
-                  MapRouteService.buildDriverMotorMarker(
-                    point: _driverLatLng,
-                    headingDegrees: _driverHeading,
-                    pulseAnimation: _pulseAnimation,
-                  ),
+                  if (_phase == _RidePhase.searching)
+                    Marker(
+                      point: _pickupLatLng,
+                      width: 240,
+                      height: 240,
+                      child: IgnorePointer(
+                        child: AnimatedBuilder(
+                          animation: _pulseController,
+                          builder: (_, _) {
+                            Widget ring(double offset) {
+                              final t = (_pulseController.value + offset) % 1.0;
+                              return Container(
+                                width: 40 + 190 * t,
+                                height: 40 + 190 * t,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: kSecondaryGreen.withValues(
+                                    alpha: (1 - t) * 0.16,
+                                  ),
+                                  border: Border.all(
+                                    color: kSecondaryGreen.withValues(
+                                      alpha: (1 - t) * 0.7,
+                                    ),
+                                    width: 2,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return Stack(
+                              alignment: Alignment.center,
+                              children: [ring(0.0), ring(0.5)],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  if (_phase != _RidePhase.searching)
+                    MapRouteService.buildDriverMotorMarker(
+                      point: _driverLatLng,
+                      headingDegrees: _driverHeading,
+                      pulseAnimation: _pulseAnimation,
+                    ),
                 ],
               ),
             ),
@@ -2678,9 +3830,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  _hasArrived
-                                      ? 'Sampai di Tujuan'
-                                      : '${widget.serviceLabel} · ${_distanceKm.toStringAsFixed(1)} km',
+                                  _topPillLabel,
                                   style: _body(
                                     textColorPrimary,
                                     13,
@@ -2719,7 +3869,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                     child: GasKampusMapControls(
                       currentStyle: _mapStyle,
                       isSimulating: _isSimulating,
-                      onToggleSimulation: _toggleSimulation,
+                      onToggleSimulation: _onManualSimulationToggle,
                       onCycleStyle: _cycleMapStyle,
                       onFitRoute: _fitBounds,
                       onZoomIn: () {
@@ -2766,7 +3916,12 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
-                          child: Column(
+                          child: _phase == _RidePhase.searching
+                              ? _buildSearchingPanel(
+                                  textColorPrimary,
+                                  textColorSecondary,
+                                )
+                              : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
@@ -2780,11 +3935,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          _hasArrived
-                                              ? 'Perjalanan telah selesai!'
-                                              : (_isSimulating
-                                                    ? 'Driver sedang mengantar ke tujuan'
-                                                    : 'Driver sedang menuju lokasimu'),
+                                          _phaseTitle,
                                           style: _body(
                                             textColorPrimary,
                                             17,
@@ -2816,9 +3967,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                       borderRadius: BorderRadius.circular(99),
                                     ),
                                     child: Text(
-                                      _hasArrived
-                                          ? 'Tiba'
-                                          : '$_etaMinutes Menit',
+                                      _etaChipLabel,
                                       style: _body(
                                         textColorPrimary,
                                         13,
@@ -2941,8 +4090,9 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                 children: [
                                   Expanded(
                                     child: InkWell(
-                                      onTap: _toggleSimulation,
-                                      borderRadius: BorderRadius.circular(99),
+                                      onTap: _phase == _RidePhase.onTrip
+                                          ? _toggleSimulation
+                                          : null,
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 14,
@@ -2966,9 +4116,17 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                             ),
                                             const SizedBox(width: 8),
                                             Text(
-                                              _isSimulating
-                                                  ? 'Jeda Simulasi Motor'
-                                                  : 'Jalankan Simulasi Motor',
+                                              _phase == _RidePhase.onTrip
+                                                  ? (_isSimulating
+                                                        ? 'Jeda Perjalanan'
+                                                        : 'Lanjutkan Perjalanan')
+                                                  : (_phase == _RidePhase.arrived
+                                                        ? 'Perjalanan Selesai'
+                                                        : (_phase ==
+                                                                  _RidePhase
+                                                                      .pickupArrived
+                                                              ? 'Driver Tiba, Berangkat...'
+                                                              : 'Driver Menuju Lokasimu...')),
                                               style: _body(
                                                 Colors.black87,
                                                 14,
@@ -3058,8 +4216,98 @@ class _RiwayatScreen extends StatefulWidget {
 
 class _RiwayatScreenState extends State<_RiwayatScreen> {
   int _selectedTab = 0;
+  bool _isDeletingAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _runOneMonthAutoCleanup();
+  }
+
+  /// Algoritma otomatis: hapus pesanan yang berusia >= 1 bulan (30 hari)
+  /// dari memori lokal maupun database Firestore agar tidak memberatkan database.
+  Future<void> _runOneMonthAutoCleanup() async {
+    _allOrders.removeWhere(
+      (o) => SessionOrderStore.isOlderThanOneMonth(o.createdAt),
+    );
+    final purgedCount =
+        await SessionOrderStore.purgeOlderThanOneMonthDatabase();
+    if (mounted) {
+      setState(() {});
+      if (purgedCount > 0) {
+        AppNotificationStore.add(
+          title: 'Pembersihan Otomatis Riwayat (1 Bulan)',
+          message:
+              '$purgedCount riwayat pesanan berusia > 1 bulan telah dihapus otomatis dari database.',
+          icon: Icons.auto_delete_rounded,
+          color: const Color(0xFF64748B),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmAndDeleteAllHistory(
+    BuildContext context,
+    Color cardBg,
+    Color tp,
+    Color ts,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          'Hapus Semua Riwayat?',
+          style: _body(tp, 17, FontWeight.bold),
+        ),
+        content: Text(
+          'Seluruh riwayat pesanan Anda akan dihapus permanen dari aplikasi dan database.',
+          style: _body(ts, 13.5, FontWeight.normal, h: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx, false),
+            child: Text('Batal', style: TextStyle(color: ts)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            onPressed: () => Navigator.pop(dlgCtx, true),
+            child: const Text(
+              'Hapus Semua',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _isDeletingAll = true);
+    _allOrders.clear();
+    await SessionOrderStore.deleteAllUserOrdersFromDatabase();
+    AppNotificationStore.add(
+      title: 'Riwayat Pesanan Dihapus',
+      message: 'Seluruh riwayat pesanan telah dibersihkan dari database.',
+      icon: Icons.delete_sweep_rounded,
+      color: Colors.redAccent,
+    );
+    if (mounted) {
+      setState(() => _isDeletingAll = false);
+    }
+  }
 
   List<OrderItem> get _filteredOrders {
+    _allOrders.removeWhere(
+      (o) => SessionOrderStore.isOlderThanOneMonth(o.createdAt),
+    );
     switch (_selectedTab) {
       case 1:
         return _allOrders.where((o) => o.status == 'proses').toList();
@@ -3125,7 +4373,42 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                           style: _body(textColorPrimary, 18, FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(width: 40),
+                      GestureDetector(
+                        onTap: _isDeletingAll
+                            ? null
+                            : () => _confirmAndDeleteAllHistory(
+                                context,
+                                cardBg,
+                                textColorPrimary,
+                                textColorSecondary,
+                              ),
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.delete_sweep_rounded,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Hapus Semua',
+                                style: _body(
+                                  Colors.redAccent,
+                                  12,
+                                  FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -3184,11 +4467,15 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                 final seenIds = <String>{};
                 final serviceOrders = <_ServiceOrderData>[];
 
-                // 1. Pesanan dari Firestore
+                // 1. Pesanan dari Firestore (otomatis hapus jika berusia >= 1 bulan / 30 hari)
                 if (snapshot.hasData) {
                   for (final doc in snapshot.data!.docs) {
                     final data = doc.data();
                     final item = _ServiceOrderData.fromMap(doc.id, data);
+                    if (SessionOrderStore.isOlderThanOneMonth(item.createdAt)) {
+                      doc.reference.delete().catchError((_) {});
+                      continue;
+                    }
                     seenIds.add(doc.id);
                     final isDone =
                         item.status == 'completed' ||
@@ -3200,6 +4487,7 @@ class _RiwayatScreenState extends State<_RiwayatScreen> {
                 }
 
                 // 2. Pesanan dari sesi lokal (SessionOrderStore) yang belum ada di snapshot
+                SessionOrderStore.purgeOlderThanOneMonthLocal();
                 for (final loc in SessionOrderStore.orders) {
                   if (seenIds.contains(loc.id)) continue;
                   final item = _ServiceOrderData(

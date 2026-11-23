@@ -46,10 +46,157 @@ class LocalOrderRecord {
 }
 
 class SessionOrderStore {
+  /// Batas waktu retensi riwayat pesanan: 1 bulan (30 hari).
+  /// Pesanan yang berusia >= 30 hari otomatis dihapus dari memori & database Firestore.
+  static const int maxRetentionDays = 30;
+
   static final List<LocalOrderRecord> orders = [];
 
+  static bool isOlderThanOneMonth(DateTime createdAt) {
+    return DateTime.now().difference(createdAt).inDays >= maxRetentionDays;
+  }
+
   static void addOrder(LocalOrderRecord record) {
+    purgeOlderThanOneMonthLocal();
     orders.insert(0, record);
+  }
+
+  static void clearAll() {
+    orders.clear();
+  }
+
+  static void purgeOlderThanOneMonthLocal() {
+    orders.removeWhere((o) => isOlderThanOneMonth(o.createdAt));
+  }
+
+  /// Algoritma pembersihan otomatis pesanan yang sudah berusia >= 1 bulan (30 hari)
+  /// dari koleksi Firestore `orders` agar tidak memberatkan database.
+  static Future<int> purgeOlderThanOneMonthDatabase() async {
+    purgeOlderThanOneMonthLocal();
+    int deletedCount = 0;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return 0;
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('passengerId', isEqualTo: uid)
+          .get()
+          .timeout(const Duration(seconds: 8));
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in snap.docs) {
+        final rawDate = doc.data()['createdAt']?.toString() ?? '';
+        final createdAt = DateTime.tryParse(rawDate);
+        if (createdAt != null && isOlderThanOneMonth(createdAt)) {
+          batch.delete(doc.reference);
+          deletedCount++;
+        }
+      }
+      if (deletedCount > 0) {
+        await batch.commit();
+      }
+    } catch (_) {}
+    return deletedCount;
+  }
+
+  /// Hapus seluruh riwayat pesanan pengguna dari database Firestore dan sesi lokal.
+  static Future<void> deleteAllUserOrdersFromDatabase() async {
+    clearAll();
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('passengerId', isEqualTo: uid)
+          .get()
+          .timeout(const Duration(seconds: 8));
+
+      if (snap.docs.isEmpty) return;
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } catch (_) {}
+  }
+}
+
+class AppNotificationItem {
+  final String id;
+  final String title;
+  final String message;
+  final DateTime createdAt;
+  final IconData icon;
+  final Color color;
+  bool isRead;
+
+  AppNotificationItem({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.createdAt,
+    required this.icon,
+    required this.color,
+    this.isRead = false,
+  });
+}
+
+class AppNotificationStore {
+  static final ValueNotifier<int> version = ValueNotifier<int>(0);
+
+  static final List<AppNotificationItem> items = [
+    AppNotificationItem(
+      id: 'welcome_promo',
+      title: 'Promo GasRide Kampus USU Aktif!',
+      message:
+          'Gunakan voucher KAMPUSHEMAT atau GASRIDE3K di Opsi Lainnya untuk potongan langsung perjalananmu.',
+      createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
+      icon: Icons.local_offer_rounded,
+      color: const Color(0xFF16A34A),
+    ),
+    AppNotificationItem(
+      id: 'gps_ready',
+      title: 'Radar Driver Kampus Siap',
+      message:
+          'Driver mahasiswa dan umum aktif di Zona A, B, C, dan D siap menjemputmu.',
+      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
+      icon: Icons.radar_rounded,
+      color: const Color(0xFF8DBF1A),
+    ),
+  ];
+
+  static int get unreadCount => items.where((n) => !n.isRead).length;
+
+  static void add({
+    required String title,
+    required String message,
+    IconData icon = Icons.notifications_active_rounded,
+    Color color = const Color(0xFF16A34A),
+  }) {
+    items.insert(
+      0,
+      AppNotificationItem(
+        id: 'notif_${DateTime.now().millisecondsSinceEpoch}',
+        title: title,
+        message: message,
+        createdAt: DateTime.now(),
+        icon: icon,
+        color: color,
+      ),
+    );
+    version.value++;
+  }
+
+  static void markAllAsRead() {
+    for (final item in items) {
+      item.isRead = true;
+    }
+    version.value++;
+  }
+
+  static void clearAll() {
+    items.clear();
+    version.value++;
   }
 }
 
@@ -239,23 +386,16 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
         createdAt: now,
       ),
     );
+    AppNotificationStore.add(
+      title: _isMakan ? 'Pesanan Makan Dibuat' : 'Pesanan Titip Barang Dibuat',
+      message: '$itemsText → $destinationText ($formattedFare)',
+      icon: _isMakan ? Icons.restaurant_rounded : Icons.shopping_bag_rounded,
+      color: _isMakan ? const Color(0xFFFF9F43) : const Color(0xFF54A0FF),
+    );
 
     if (!mounted) return;
     setState(() => _loading = false);
-    _showSnack(
-      _isMakan
-          ? 'Pesanan makan berhasil dibuat!'
-          : 'Pesanan titip barang berhasil dibuat!',
-      Colors.green,
-    );
     Navigator.pop(context, true);
-  }
-
-  void _showSnack(String msg, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   @override

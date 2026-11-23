@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/gas_faces.dart';
 import 'package:gas_kampusapp/services/zone_service.dart';
 import '../login_screen.dart';
 import 'topup_modal.dart';
@@ -109,38 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  final List<Map<String, String>> _avatarPresets = [
-    {
-      'name': 'Ahmad (Default)',
-      'url':
-          'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      'name': 'Casual Tech',
-      'url':
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      'name': 'Mahasiswi FEB',
-      'url':
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      'name': 'Aktivis Kampus',
-      'url':
-          'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      'name': 'Kreatif Desain',
-      'url':
-          'https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      'name': 'Jaket Almamater',
-      'url':
-          'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-    },
-  ];
+  final List<GasZodiac> _zodiacAvatars = kGasZodiacs;
 
   void _showChangePhotoModal(BuildContext context, Color bg, Color tp, Color ts,
       Color cardBg, Color border) {
@@ -187,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Pilih avatar mahasiswa atau masukkan foto baru',
+                        'Pilih avatar zodiak atau masukkan foto baru',
                         style: _body(ts, 12, FontWeight.w500),
                       ),
                     ],
@@ -209,95 +179,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 20),
               Text(
-                'PILIH AVATAR MAHASISWA',
+                'PILIH ZODIAK',
                 style: _body(kPrimaryDeep, 11, FontWeight.bold, ls: 1.0),
               ),
               const SizedBox(height: 12),
 
-              // Avatars Grid / Row
+              // Avatar zodiak (geser ke samping)
               SizedBox(
                 height: 104,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  itemCount: _avatarPresets.length,
+                  itemCount: _zodiacAvatars.length,
                   separatorBuilder: (context, index) => const SizedBox(width: 14),
                   itemBuilder: (context, i) {
-                    final item = _avatarPresets[i];
-                    final isSelected = _profileImage == item['url'];
+                    final zodiac = _zodiacAvatars[i];
+                    final avatarId = gasAvatarIdFor(zodiac);
+                    final isSelected = _profileImage == avatarId;
 
                     return GestureDetector(
                       onTap: () {
                         setState(() {
-                          _profileImage = item['url']!;
+                          _profileImage = avatarId;
                         });
-                        _savePhotoUrlToFirestore(item['url']!);
+                        _savePhotoUrlToFirestore(avatarId);
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: const Color(0xFF1D2210),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(color: kPrimary),
-                            ),
-                            content: Row(
-                              children: [
-                                const Icon(Icons.check_circle_rounded,
-                                    color: kPrimary, size: 20),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Foto profil diganti ke "${item['name']}"!',
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected ? kPrimary : border,
-                                    width: isSelected ? 3 : 1.5,
-                                  ),
-                                  image: DecorationImage(
-                                    image: NetworkImage(item['url']!),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? kPrimary : Colors.transparent,
+                                width: 3,
                               ),
-                              if (isSelected)
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: const BoxDecoration(
-                                      color: kPrimary,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.check_rounded,
-                                        color: kTextOnPrimary, size: 14),
-                                  ),
-                                ),
-                            ],
+                            ),
+                            child: GasStudentAvatar(size: 62, zodiac: zodiac),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            item['name']!,
+                            zodiac.label,
                             style: _body(
                               isSelected ? kPrimaryDeep : ts,
-                              10,
+                              10.5,
                               isSelected ? FontWeight.bold : FontWeight.w500,
                             ),
                           ),
@@ -630,29 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                  child: _profileImage.trim().isNotEmpty
-                      ? ClipOval(
-                          child: Image.network(
-                            _profileImage,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
-                              child: Icon(
-                                Icons.person_rounded,
-                                size: 64,
-                                color: kPrimaryDeep,
-                              ),
-                            ),
-                          ),
-                        )
-                      : const Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            size: 64,
-                            color: kPrimaryDeep,
-                          ),
-                        ),
+                  child: GasProfileImage(photoUrl: _profileImage, size: 120),
                 ),
               ),
 

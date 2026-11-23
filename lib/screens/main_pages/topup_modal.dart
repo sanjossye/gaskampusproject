@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/wallet_service.dart';
+import '../payment_success_screen.dart';
+import 'service_order_screen.dart';
 
 // Palet sinkronisasi minimum
 const Color kPrimary = Color(0xFFC0F637);
@@ -196,16 +198,34 @@ void showTopUpModal(BuildContext context) {
                                     amount: amount,
                                     method: selectedMethod,
                                   );
+                                  AppNotificationStore.add(
+                                    title: 'Top Up GasPay Berhasil',
+                                    message:
+                                        'Top Up +Rp ${WalletService.formatRupiah(amount)} via $selectedMethod berhasil. Saldo saat ini: Rp ${WalletService.formatRupiah(newBalance)}.',
+                                    icon: Icons.account_balance_wallet_rounded,
+                                    color: const Color(0xFF64748B),
+                                  );
                                   if (!modalCtx.mounted) return;
                                   Navigator.pop(modalCtx);
                                   if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Top Up +Rp ${WalletService.formatRupiah(amount)} via $selectedMethod berhasil! Saldo: Rp ${WalletService.formatRupiah(newBalance)}',
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      fullscreenDialog: true,
+                                      builder: (_) => PaymentSuccessScreen(
+                                        title: 'Top Up Berhasil!',
+                                        receiverName: 'GasPay · Dompet GasKampus',
+                                        receiverSub: 'Top Up via $selectedMethod',
+                                        amountCaption: 'Nominal Top Up',
+                                        amountLabel:
+                                            'Rp ${WalletService.formatRupiah(amount)}',
+                                        details: [
+                                          MapEntry('Metode', selectedMethod),
+                                          MapEntry(
+                                            'Saldo sekarang',
+                                            'Rp ${WalletService.formatRupiah(newBalance)}',
+                                          ),
+                                        ],
                                       ),
-                                      backgroundColor: Colors.green,
-                                      behavior: SnackBarBehavior.floating,
                                     ),
                                   );
                                 } catch (e) {
