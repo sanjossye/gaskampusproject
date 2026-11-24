@@ -5,6 +5,7 @@ import '../../../models/user_model.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/fare_pricing_service.dart';
 import 'package:gas_kampusapp/services/zone_service.dart';
+import '../merchants/admin_merchant_management_screen.dart';
 
 const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
@@ -849,6 +850,28 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
             Icon(Icons.person_off_outlined, size: 54, color: Colors.grey.withOpacity(0.5)),
             const SizedBox(height: 8),
             Text('Tidak ada data pada kategori ini', style: const TextStyle(color: Colors.grey)),
+            if (role == 'merchant') ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.add_business_rounded, size: 18),
+                label: const Text('Buka Manajemen & Pendaftaran Merchant'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminMerchantManagementScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       );

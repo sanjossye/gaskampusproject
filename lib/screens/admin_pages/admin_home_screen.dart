@@ -7,6 +7,7 @@ import 'orders/admin_orders_screen.dart';
 import 'reports/admin_reports_screen.dart';
 import 'settings/admin_fare_settings_modal.dart';
 import 'vouchers/admin_voucher_management_screen.dart';
+import 'merchants/admin_merchant_management_screen.dart';
 
 const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
@@ -282,6 +283,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const AdminVoucherManagementScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildQuickActionItem(
+              icon: Icons.storefront_rounded,
+              color: Colors.purple,
+              title: 'Kelola & Daftarkan Merchant',
+              sub: 'Daftarkan kantin baru & awasi status toko kampus',
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminMerchantManagementScreen(),
                   ),
                 );
               },
@@ -854,6 +870,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               MaterialPageRoute(
                                 builder: (_) =>
                                     const AdminVoucherManagementScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildActionItem(
+                          title: 'Kelola Merchant & Kantin Kampus',
+                          sub: 'Daftarkan toko baru, atur status buka/tutup & profil',
+                          icon: Icons.storefront_rounded,
+                          color: Colors.purple,
+                          bg: cardBg,
+                          text: textColorPrimary,
+                          textSec: textColorSecondary,
+                          border: borderColor,
+                          onProcess: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const AdminMerchantManagementScreen(),
                               ),
                             );
                           },
