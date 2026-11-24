@@ -10,7 +10,9 @@ import '../../services/fare_pricing_service.dart';
 import '../../services/map_route_service.dart';
 import '../../services/merchant_service.dart';
 import '../../services/wallet_service.dart';
+import '../../widgets/insufficient_gaspay_sheet.dart';
 import '../payment_success_screen.dart';
+import 'food_order_tracking_screen.dart';
 import 'service_order_screen.dart';
 import 'topup_modal.dart';
 
@@ -915,18 +917,15 @@ class _MerchantDetailOrderScreenState extends State<MerchantDetailOrderScreen> {
         : (_selectedPayment == 1 ? 'QRIS' : 'Tunai');
 
     if (_selectedPayment == 0 && _walletBalance < totalPay) {
-      ScaffoldMessenger.of(sheetCtx).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Saldo GasPay (Rp ${WalletService.formatRupiah(_walletBalance)}) kurang untuk total ${MerchantService.formatRupiah(totalPay)}.',
-          ),
-          backgroundColor: Colors.redAccent,
-          action: SnackBarAction(
-            label: 'Top Up',
-            textColor: kPrimary,
-            onPressed: () => showTopUpModal(context),
-          ),
-        ),
+      await showInsufficientGasPaySheet(
+        context: sheetCtx,
+        currentBalance: _walletBalance,
+        requiredAmount: totalPay,
+        onTopUp: () => showTopUpModal(context),
+        onSwitchToCash: () {
+          setSheet(() => _selectedPayment = 2);
+          setState(() => _selectedPayment = 2);
+        },
       );
       return;
     }
@@ -1004,6 +1003,7 @@ class _MerchantDetailOrderScreenState extends State<MerchantDetailOrderScreen> {
           'fareAmount': totalPay,
           'distanceKm': _distanceKm,
           'paymentMethod': paymentCode,
+          'paymentStatus': paymentCode == 'Tunai' ? 'unpaid' : 'paid',
           'createdAt': now.toIso8601String(),
         }).timeout(const Duration(seconds: 8));
         docId = docRef.id;
@@ -1035,30 +1035,55 @@ class _MerchantDetailOrderScreenState extends State<MerchantDetailOrderScreen> {
     setState(() => _submitting = false);
     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
 
+    final isCash = paymentCode == 'Tunai';
     await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PaymentSuccessScreen(
-          title: 'Pesanan Makan Berhasil!',
+          title: isCash ? 'Pesanan Makanan Berhasil!' : 'Pembayaran Berhasil!',
           receiverName: widget.merchant.name,
           receiverSub: widget.merchant.address,
           amountLabel: formattedTotal,
+          amountCaption: isCash
+              ? 'Total Tagihan (Bayar Tunai)'
+              : 'Nominal Transaksi',
+          isPaid: !isCash,
+          paymentStatusNote: isCash
+              ? 'Status: Belum Dibayar · Bayar tunai ke driver saat tiba'
+              : null,
           details: [
             MapEntry('Pesanan', itemsSummary),
             MapEntry('Pengantaran', dest),
             MapEntry('Metode', paymentCode),
+            MapEntry(
+              'Status Pembayaran',
+              isCash ? 'Belum Dibayar (Tunai)' : 'Lunas',
+            ),
             if (paymentCode == 'GasPay' && remainingBalance != null)
               MapEntry(
                 'Sisa saldo',
                 'Rp ${WalletService.formatRupiah(remainingBalance)}',
               ),
           ],
-          onDone: () {
-            if (mounted) Navigator.pop(context, true);
-          },
         ),
       ),
     );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FoodOrderTrackingScreen(
+          orderId: docId,
+          merchantName: widget.merchant.name,
+          merchantAddress: widget.merchant.address,
+          destinationAddress: dest,
+          itemsSummary: itemsSummary,
+          totalLabel: formattedTotal,
+          paymentMethod: paymentCode,
+          initialPaymentStatus: isCash ? 'unpaid' : 'paid',
+        ),
+      ),
+    );
+    if (mounted) Navigator.pop(context, true);
   }
 
   @override

@@ -290,12 +290,72 @@ class MerchantService {
         .snapshots();
   }
 
-  /// Perbarui status pesanan makanan oleh merchant (`accepted`, `preparing`, `onTrip`, `completed`, `cancelled`).
+  /// Stream semua pesanan makanan aktif untuk Driver (Driver Mahasiswa & Driver Umum).
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamActiveFoodOrders() {
+    return _orders
+        .where('serviceType', isEqualTo: 'makan')
+        .snapshots();
+  }
+
+  /// Stream satu pesanan secara real-time untuk pelacakan status oleh mahasiswa.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamOrderById(
+    String orderId,
+  ) {
+    return _orders.doc(orderId).snapshots();
+  }
+
+  /// Driver mengambil tugas untuk menuju toko merchant.
+  Future<void> acceptFoodOrderToMerchant({
+    required String orderId,
+    required String driverId,
+    required String driverName,
+  }) async {
+    await _orders.doc(orderId).update({
+      'status': 'going_to_merchant',
+      'driverId': driverId,
+      'driverName': driverName,
+      'goingToMerchantAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Merchant menandai bahwa makanan telah diambil oleh driver.
+  Future<void> markFoodPickedUpByDriver(String orderId) async {
+    await _orders.doc(orderId).update({
+      'status': 'picked_up',
+      'pickedUpAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Driver mulai mengantar pesanan makanan menuju lokasi mahasiswa.
+  Future<void> startFoodDeliveryToCustomer(String orderId) async {
+    await _orders.doc(orderId).update({
+      'status': 'onTrip',
+      'onTripAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Driver mencentang "Saya Sudah Sampai" saat pesanan makanan tiba di lokasi pemesan.
+  Future<void> confirmFoodArrivedByDriver(String orderId) async {
+    final now = DateTime.now().toIso8601String();
+    await _orders.doc(orderId).update({
+      'status': 'completed',
+      'paymentStatus': 'paid',
+      'arrivedCheckedByDriver': true,
+      'completedAt': now,
+      'updatedAt': now,
+    });
+  }
+
+  /// Perbarui status pesanan makanan oleh merchant (`accepted`, `preparing`, `going_to_merchant`, `picked_up`, `onTrip`, `completed`, `cancelled`).
   Future<void> updateOrderStatus(String orderId, String status) async {
+    final now = DateTime.now().toIso8601String();
     await _orders.doc(orderId).update({
       'status': status,
-      'updatedAt': DateTime.now().toIso8601String(),
-      if (status == 'completed') 'completedAt': DateTime.now().toIso8601String(),
+      'updatedAt': now,
+      if (status == 'completed') 'completedAt': now,
     });
   }
 

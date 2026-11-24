@@ -14,6 +14,9 @@ import '../wallet_screen.dart';
 import '../../services/trip_service.dart';
 import '../../services/document_service.dart';
 import '../../services/map_route_service.dart';
+import '../../services/ride_dispatch_service.dart';
+import '../../widgets/driver_food_orders_section.dart';
+import '../../widgets/driver_ride_orders_section.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -29,6 +32,7 @@ class DriverUmumHomeScreen extends StatefulWidget {
 class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   final TripService _tripService = TripService();
   final DocumentService _docService = DocumentService();
+  final RideDispatchService _dispatch = RideDispatchService();
 
   bool _isWorking = true;
   int _navIndex = 0;
@@ -67,35 +71,22 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _activeOrders = [
-      {
-        'orderId': 'order_live_01',
-        'name': 'Andi Pratama',
-        'desc': 'Mahasiswa · Fak. Teknik USU',
-        'price': 'Rp 15.000',
-        'fareAmount': 15000,
-        'from': 'Stasiun Medan',
-        'to': 'Gedung C - Zona B (Fakultas Teknik USU)',
-        'zone': 'Zona B',
-        'payment': 'GasPay',
-        'isPrimary': true,
-      },
-      {
-        'orderId': 'order_live_02',
-        'name': 'Siti Aisyah',
-        'desc': 'Mahasiswa · Vokasi USU',
-        'price': 'Rp 18.500',
-        'fareAmount': 18500,
-        'from': 'Plaza Medan Fair',
-        'to': 'Biro Rektor - Zona A (Rektorat USU)',
-        'zone': 'Zona A',
-        'payment': 'Tunai',
-        'isPrimary': false,
-      },
-    ];
+    // Tanpa orderan dummy: semua orderan antar & makan masuk real-time dari Firestore.
+    _activeOrders = [];
 
     _listenToFirebaseData();
     _initDeviceGps();
+  }
+
+  Future<void> _syncPresence() async {
+    await _dispatch.syncDriverPresence(
+      isOnline: _isWorking,
+      position: _driverGps,
+      role: 'driver_umum',
+      name: _driverName,
+      vehicleBrand: _vehicleBrand,
+      vehiclePlate: _vehiclePlate,
+    );
   }
 
   Future<void> _initDeviceGps() async {
@@ -105,6 +96,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
       _driverGps = gps.position;
       _isRealGps = gps.isRealDeviceGps;
     });
+    _syncPresence();
     await _refreshDriverAddress(gps.position);
 
     _gpsStreamSub?.cancel();
@@ -115,6 +107,9 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
         _driverGps = liveGps.position;
         _isRealGps = true;
       });
+      if (moved > 25) {
+        _syncPresence();
+      }
       if (moved > 35 ||
           DateTime.now().difference(_lastGeocodeTime).inSeconds > 20) {
         _refreshDriverAddress(liveGps.position);
@@ -201,6 +196,7 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
     }
 
     setState(() => _isWorking = val);
+    await _syncPresence();
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
@@ -617,6 +613,15 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
             if (_isLeaderboardExpanded) _buildLeaderboardSection(isDark),
             _buildEarningsCard(isDark),
             _buildScheduleShiftCard(isDark),
+            DriverRideOrdersSection(
+              isOnline: _isWorking,
+              driverName: _driverName,
+              driverRole: 'driver_umum',
+              vehicleBrand: _vehicleBrand,
+              vehiclePlate: _vehiclePlate,
+              driverPosition: _driverGps,
+            ),
+            DriverFoodOrdersSection(driverName: _driverName),
             _buildOrdersSection(isDark),
           ],
         ),

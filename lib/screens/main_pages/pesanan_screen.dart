@@ -7,10 +7,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/map_route_service.dart';
 import '../../services/fare_pricing_service.dart';
+import '../../services/ride_dispatch_service.dart';
 import '../../services/wallet_service.dart';
 import '../../widgets/gas_faces.dart';
+import '../../widgets/insufficient_gaspay_sheet.dart';
 import '../payment_success_screen.dart';
 import 'service_order_screen.dart';
+import 'food_order_tracking_screen.dart';
 import 'topup_modal.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
@@ -116,6 +119,7 @@ class _PesananScreenState extends State<PesananScreen>
   int _mainStep = 0;
   late TabController _tabController;
 
+  String _activeOrderId = '';
   String _activePickupAddress = 'Lokasi Saya Saat Ini';
   String _activeDestinationAddress = 'Gedung Biro Rektor USU';
   String _activeServiceLabel = 'GasRide';
@@ -170,6 +174,7 @@ class _PesananScreenState extends State<PesananScreen>
         return _FindDriverScreen(
           initialDestination: widget.initialDestination,
           onFindDriver: (
+            orderId,
             pickup,
             dest,
             svc,
@@ -180,6 +185,7 @@ class _PesananScreenState extends State<PesananScreen>
             destPos,
           ) {
             setState(() {
+              _activeOrderId = orderId;
               _activePickupAddress = pickup;
               _activeDestinationAddress = dest;
               _activeServiceLabel = svc;
@@ -195,6 +201,7 @@ class _PesananScreenState extends State<PesananScreen>
         );
       case 1:
         return _ActiveOrderScreen(
+          orderId: _activeOrderId,
           pickupAddress: _activePickupAddress,
           destinationAddress: _activeDestinationAddress,
           serviceLabel: _activeServiceLabel,
@@ -220,6 +227,7 @@ class _PesananScreenState extends State<PesananScreen>
 class _FindDriverScreen extends StatefulWidget {
   final String? initialDestination;
   final void Function(
+    String orderId,
     String pickup,
     String destination,
     String serviceLabel,
@@ -490,18 +498,12 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
 
     // Validasi saldo jika memilih pembayaran GasPay
     if (_selectedPayment == 0 && _walletBalance < dynamicFare) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Saldo GasPay kamu (Rp ${WalletService.formatRupiah(_walletBalance)}) belum cukup untuk tarif $fareStr. Silakan Top Up terlebih dahulu.',
-          ),
-          backgroundColor: Colors.redAccent,
-          action: SnackBarAction(
-            label: 'Top Up',
-            textColor: kPrimary,
-            onPressed: () => showTopUpModal(context),
-          ),
-        ),
+      await showInsufficientGasPaySheet(
+        context: context,
+        currentBalance: _walletBalance,
+        requiredAmount: dynamicFare,
+        onTopUp: () => showTopUpModal(context),
+        onSwitchToCash: () => setState(() => _selectedPayment = 2),
       );
       return;
     }
@@ -530,24 +532,45 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
+        String passengerName = 'Mahasiswa';
+        try {
+          final uSnap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get();
+          passengerName = (uSnap.data()?['name'] ?? 'Mahasiswa').toString();
+        } catch (_) {}
+
         final docRef = await FirebaseFirestore.instance
             .collection('orders')
             .add({
               'passengerId': uid,
+              'passengerName': passengerName,
               'driverId': null,
               'serviceType': 'antar',
-              'status': 'pending',
+              'status': 'searching',
               'items': 'Layanan Antar ($svcLabel)',
               'originAddress': pickup,
               'destinationAddress': dest,
+              'pickupLat': _pickupPos.latitude,
+              'pickupLng': _pickupPos.longitude,
+              'destLat': _destPos.latitude,
+              'destLng': _destPos.longitude,
               'note': combinedNote,
               'fareAmount': dynamicFare,
               'distanceKm': _routeDistanceKm,
               'paymentMethod': paymentCode,
+              'paymentStatus': paymentCode == 'Tunai' ? 'unpaid' : 'paid',
+              'rejectedDrivers': <String>[],
               'createdAt': now.toIso8601String(),
             })
             .timeout(const Duration(seconds: 6));
         docId = docRef.id;
+        // Deteksi & tawarkan otomatis ke driver terdekat / aktif (Mahasiswa -> Umum -> Aktif)
+        await RideDispatchService().dispatchRideOrder(
+          orderId: docId,
+          pickupPos: _pickupPos,
+        );
       }
     } catch (_) {}
 
@@ -559,20 +582,21 @@ class _FindDriverScreenState extends State<_FindDriverScreen> {
         originAddress: pickup,
         destinationAddress: dest,
         note: combinedNote,
-        status: 'pending',
+        status: 'searching',
         price: fareStr,
         createdAt: now,
       ),
     );
     AppNotificationStore.add(
       title: 'Mencari driver ($svcLabel)',
-      message: 'Pesananmu dari $pickup ke $dest ($fareStr) sedang dicarikan driver.',
+      message: 'Pesananmu dari $pickup ke $dest ($fareStr) sedang ditawarkan ke driver terdekat.',
       icon: Icons.search_rounded,
       color: const Color(0xFF64748B),
     );
 
     if (mounted) {
       widget.onFindDriver(
+        docId,
         pickup,
         dest,
         svcLabel,
@@ -2759,6 +2783,7 @@ class _LocationMapPickerScreenState extends State<_LocationMapPickerScreen> {
 }
 
 class _ActiveOrderScreen extends StatefulWidget {
+  final String orderId;
   final String pickupAddress;
   final String destinationAddress;
   final String serviceLabel;
@@ -2771,6 +2796,7 @@ class _ActiveOrderScreen extends StatefulWidget {
   final VoidCallback onShowHistory;
 
   const _ActiveOrderScreen({
+    this.orderId = '',
     this.pickupAddress = 'Fakultas Teknik USU',
     this.destinationAddress = 'Gedung Biro Rektor USU',
     this.serviceLabel = 'GasRide',
@@ -2813,6 +2839,14 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
   int _tripEtaMinutes = 3;
   Timer? _phaseTimer;
   Timer? _otwTimer;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _orderSub;
+  String _driverName = 'Driver GasKampus';
+  String _driverVehicle = 'Motor Kampus';
+  String _driverPlate = '-';
+  String _driverRoleLabel = 'Driver Aktif';
+  String _dispatchTierLabel = 'Mendeteksi driver terdekat & aktif...';
+  bool _hasHandledFound = false;
+  bool _hasHandledComplete = false;
 
   bool _isMapReady = false;
   bool _isSimulating = false;
@@ -2847,8 +2881,86 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
     );
 
     _initUserLocationAndRoute();
-    // Fase 1: animasi menunggu driver ditemukan
-    _phaseTimer = Timer(const Duration(milliseconds: 4500), _onDriverFound);
+    // Dengarkan status pesanan real-time dari Firestore (tanpa driver dummy)
+    _listenLiveRideOrder();
+  }
+
+  void _listenLiveRideOrder() {
+    if (widget.orderId.isEmpty || widget.orderId.startsWith('ride_')) return;
+    _orderSub = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(widget.orderId)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted || !snap.exists) return;
+      final data = snap.data() ?? {};
+      final status = (data['status'] ?? 'searching').toString();
+      final tierLabel = (data['dispatchTierLabel'] ?? '').toString().trim();
+      final dName = (data['driverName'] ?? '').toString().trim();
+      final dVeh = (data['driverVehicle'] ?? '').toString().trim();
+      final dPlate = (data['driverPlate'] ?? '').toString().trim();
+      final dRole = (data['driverRole'] ?? '').toString().trim();
+      final dLat = (data['driverLat'] as num?)?.toDouble();
+      final dLng = (data['driverLng'] as num?)?.toDouble();
+
+      setState(() {
+        if (tierLabel.isNotEmpty) _dispatchTierLabel = tierLabel;
+        if (dName.isNotEmpty) _driverName = dName;
+        if (dVeh.isNotEmpty) _driverVehicle = dVeh;
+        if (dPlate.isNotEmpty) _driverPlate = dPlate;
+        if (dRole == 'driver_kampus') {
+          _driverRoleLabel = 'Driver Mahasiswa';
+        } else if (dRole == 'driver_umum') {
+          _driverRoleLabel = 'Driver Umum';
+        }
+      });
+
+      if (status == 'cancelled') {
+        widget.onBack();
+        return;
+      }
+
+      if ((status == 'accepted' || status == 'onPickup') && !_hasHandledFound) {
+        _hasHandledFound = true;
+        final startPos = (dLat != null && dLng != null)
+            ? LatLng(dLat, dLng)
+            : LatLng(
+                _pickupLatLng.latitude + 0.0045,
+                _pickupLatLng.longitude - 0.0032,
+              );
+        _onDriverFound(driverStartPos: startPos);
+      } else if (status == 'arrived' && _phase != _RidePhase.pickupArrived) {
+        _otwTimer?.cancel();
+        setState(() {
+          _phase = _RidePhase.pickupArrived;
+          _driverLatLng = _pickupLatLng;
+          _distanceKm = 0.0;
+          _etaMinutes = 0;
+        });
+        AppNotificationStore.add(
+          title: 'Driver sudah tiba',
+          message: '$_driverName menunggu di ${widget.pickupAddress}.',
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFF64748B),
+        );
+      } else if (status == 'onTrip' && _phase != _RidePhase.onTrip) {
+        _otwTimer?.cancel();
+        _beginTrip();
+      } else if (status == 'completed' && !_hasHandledComplete) {
+        _hasHandledComplete = true;
+        _otwTimer?.cancel();
+        _simulationTimer?.cancel();
+        setState(() {
+          _isSimulating = false;
+          _hasArrived = true;
+          _phase = _RidePhase.arrived;
+          _driverLatLng = _dropoffLatLng;
+          _distanceKm = 0.0;
+          _etaMinutes = 0;
+        });
+        _handleArrivalAndShowPopup();
+      }
+    });
   }
 
   String get _phaseTitle {
@@ -2917,14 +3029,15 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
     }
   }
 
-  /// Fase 2: driver ditemukan -> munculkan pop up "driver OTW".
-  Future<void> _onDriverFound() async {
+  /// Fase 2: driver real menyetujui order -> munculkan pop up "driver OTW".
+  Future<void> _onDriverFound({LatLng? driverStartPos}) async {
     if (!mounted) return;
-    // Titik awal driver sekitar 700 m dari lokasi penjemputan.
-    final start = LatLng(
-      _pickupLatLng.latitude + 0.0045,
-      _pickupLatLng.longitude - 0.0032,
-    );
+    final start =
+        driverStartPos ??
+        LatLng(
+          _pickupLatLng.latitude + 0.0045,
+          _pickupLatLng.longitude - 0.0032,
+        );
     final res = await MapRouteService.fetchRoadRoute(start, _pickupLatLng);
     if (!mounted) return;
     final dense = MapRouteService.densifyRoutePoints(res.points);
@@ -2944,13 +3057,15 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
     _fitBounds();
     AppNotificationStore.add(
       title: 'Driver ditemukan',
-      message: 'Budi Santoso (BK 1234 GKS) sedang OTW ke ${widget.pickupAddress}.',
+      message: '$_driverName ($_driverPlate) sedang OTW ke ${widget.pickupAddress}.',
       icon: Icons.two_wheeler_rounded,
       color: const Color(0xFF64748B),
     );
     await _showDriverOtwBottomSheet();
     if (!mounted) return;
-    _startOtwPhase();
+    if (_phase == _RidePhase.found) {
+      _startOtwPhase();
+    }
   }
 
   Future<void> _showDriverOtwBottomSheet() async {
@@ -3018,12 +3133,12 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Budi Santoso',
+                          _driverName,
                           style: _body(tp, 14.5, FontWeight.bold),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Honda Vario 125 • BK 1234 GKS',
+                          '$_driverVehicle • $_driverPlate',
                           style: _body(ts, 12, FontWeight.w600),
                         ),
                       ],
@@ -3059,11 +3174,10 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         });
         AppNotificationStore.add(
           title: 'Driver sudah tiba',
-          message: 'Driver menunggu di ${widget.pickupAddress}.',
+          message: '$_driverName menunggu di ${widget.pickupAddress}.',
           icon: Icons.location_on_rounded,
           color: const Color(0xFF64748B),
         );
-        _phaseTimer = Timer(const Duration(milliseconds: 2200), _beginTrip);
         return;
       }
 
@@ -3161,7 +3275,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'Radar menjangkau driver kampus yang aktif di sekitar ${widget.pickupAddress}',
+          '$_dispatchTierLabel · Menunggu driver menyetujui pesanan di sekitar ${widget.pickupAddress}',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -3169,7 +3283,14 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         ),
         const SizedBox(height: 10),
         TextButton(
-          onPressed: widget.onBack,
+          onPressed: () async {
+            if (widget.orderId.isNotEmpty &&
+                !widget.orderId.startsWith('ride_')) {
+              await RideDispatchService()
+                  .cancelRideOrderByPassenger(widget.orderId);
+            }
+            if (mounted) widget.onBack();
+          },
           child: Text(
             'Batalkan pesanan',
             style: _body(Colors.redAccent, 13, FontWeight.bold),
@@ -3513,7 +3634,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
           .collection('driver_ratings')
           .add({
             'passengerId': FirebaseAuth.instance.currentUser?.uid,
-            'driverName': 'Budi Santoso',
+            'driverName': _driverName,
             'mood': moodId,
             'note': note,
             'serviceLabel': widget.serviceLabel,
@@ -3539,7 +3660,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
         fullscreenDialog: true,
         builder: (_) => PaymentSuccessScreen(
           receiverName: 'GasKampus ${widget.serviceLabel}',
-          receiverSub: 'Driver Budi Santoso • BK 1234 GKS',
+          receiverSub: '$_driverRoleLabel · $_driverName • $_driverPlate',
           amountLabel: widget.fareLabel,
           details: [
             MapEntry(
@@ -3664,6 +3785,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
 
   @override
   void dispose() {
+    _orderSub?.cancel();
     _simulationTimer?.cancel();
     _phaseTimer?.cancel();
     _otwTimer?.cancel();
@@ -4038,7 +4160,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                           Row(
                                             children: [
                                               Text(
-                                                'Budi Santoso',
+                                                _driverName,
                                                 style: _body(
                                                   textColorPrimary,
                                                   15,
@@ -4047,10 +4169,10 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                               ),
                                               const SizedBox(width: 6),
                                               Text(
-                                                '• 4.9',
+                                                '• $_driverRoleLabel',
                                                 style: _body(
                                                   textColorPrimary,
-                                                  13,
+                                                  12.5,
                                                   FontWeight.w600,
                                                 ),
                                               ),
@@ -4058,7 +4180,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            'BK 1234 GKS · ${widget.fareLabel}',
+                                            '$_driverPlate · ${widget.fareLabel}',
                                             style: TextStyle(
                                               color: textColorSecondary,
                                               fontSize: 12.5,
@@ -4788,23 +4910,29 @@ class _OrderCard extends StatelessWidget {
 class _ServiceOrderData {
   final String id;
   final String serviceType;
+  final String merchantName;
   final String items;
   final String originAddress;
   final String destinationAddress;
   final String note;
   final String status;
   final String priceLabel;
+  final String paymentMethod;
+  final String paymentStatus;
   final DateTime createdAt;
 
   const _ServiceOrderData({
     required this.id,
     required this.serviceType,
+    this.merchantName = '',
     required this.items,
     required this.originAddress,
     required this.destinationAddress,
     required this.note,
     required this.status,
     this.priceLabel = '',
+    this.paymentMethod = 'GasPay',
+    this.paymentStatus = 'paid',
     required this.createdAt,
   });
 
@@ -4813,25 +4941,40 @@ class _ServiceOrderData {
     final distNum = (data['distanceKm'] as num?)?.toDouble() ?? 1.0;
     final computedFare =
         fareNum ?? FarePricingService.calculateMotorFare(distNum);
-    final merchantName = (data['merchantName'] ?? '').toString().trim();
+    final merchantName = (data['merchantName'] ?? data['originName'] ?? '')
+        .toString()
+        .trim();
     final rawItems = (data['items'] ?? '').toString().trim();
     final displayItems = merchantName.isNotEmpty && rawItems.isNotEmpty
         ? '$merchantName: $rawItems'
         : rawItems;
+    final payMethod = (data['paymentMethod'] ?? 'GasPay').toString();
+    final payStatus = (data['paymentStatus'] ??
+            (payMethod.toLowerCase() == 'tunai' ? 'unpaid' : 'paid'))
+        .toString();
     return _ServiceOrderData(
       id: id,
       serviceType: (data['serviceType'] ?? '').toString(),
+      merchantName: merchantName,
       items: displayItems,
       originAddress: (data['originAddress'] ?? '').toString(),
       destinationAddress: (data['destinationAddress'] ?? '').toString(),
       note: (data['note'] ?? '').toString(),
       status: (data['status'] ?? 'pending').toString(),
       priceLabel: FarePricingService.formatRupiah(computedFare),
+      paymentMethod: payMethod,
+      paymentStatus: payStatus,
       createdAt:
           DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
           DateTime.now(),
     );
   }
+
+  bool get isUnpaidCash =>
+      paymentStatus == 'unpaid' ||
+      (paymentMethod.toLowerCase() == 'tunai' &&
+          paymentStatus != 'paid' &&
+          status != 'completed');
 
   bool get isMakan => serviceType == 'makan';
   bool get isTitip => serviceType == 'titip';
@@ -4845,12 +4988,21 @@ class _ServiceOrderData {
 
   String get statusLabel {
     switch (status) {
+      case 'searching':
+        return 'Mencari Driver';
       case 'pending':
         return 'Menunggu';
       case 'accepted':
-        return 'Diterima';
+      case 'preparing':
+        return 'Diproses Merchant';
+      case 'going_to_merchant':
+        return 'Driver ke Merchant';
+      case 'picked_up':
+        return 'Diambil Driver';
       case 'onPickup':
-        return 'Dijemput';
+        return 'Driver Menjemput';
+      case 'arrived':
+        return 'Driver Tiba';
       case 'onTrip':
         return 'Diantar';
       case 'completed':
@@ -5011,6 +5163,58 @@ class _ServiceOrderCard extends StatelessWidget {
           if (order.priceLabel.isNotEmpty) ...[
             const SizedBox(height: 8),
             _detailRow(Icons.payments_outlined, 'Tarif', order.priceLabel),
+          ],
+          if (order.isUnpaidCash) ...[
+            const SizedBox(height: 8),
+            _detailRow(
+              Icons.hourglass_bottom_rounded,
+              'Status Pembayaran',
+              'Belum Dibayar (Tunai)',
+            ),
+          ],
+          if (order.isMakan && !isFinished) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FoodOrderTrackingScreen(
+                        orderId: order.id,
+                        merchantName: order.merchantName.isNotEmpty
+                            ? order.merchantName
+                            : (order.originAddress.isNotEmpty
+                                ? order.originAddress
+                                : 'Merchant GasMakan'),
+                        merchantAddress: order.originAddress,
+                        destinationAddress: order.destinationAddress,
+                        itemsSummary: order.items,
+                        totalLabel: order.priceLabel,
+                        paymentMethod: order.paymentMethod,
+                        initialPaymentStatus: order.isUnpaidCash
+                            ? 'unpaid'
+                            : 'paid',
+                        initialStatus: order.status,
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  foregroundColor: const Color(0xFF0A0F02),
+                  elevation: 0,
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+                icon: const Icon(Icons.delivery_dining_rounded, size: 18),
+                label: Text(
+                  'Lacak Proses Makanan',
+                  style: _body(const Color(0xFF0A0F02), 13.5, FontWeight.bold),
+                ),
+              ),
+            ),
           ],
         ],
       ),

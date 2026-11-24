@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/fare_pricing_service.dart';
 import '../../services/map_route_service.dart';
+import 'food_order_tracking_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBgDark = Color(0xFF1D2210);
@@ -395,6 +396,22 @@ class _ServiceOrderScreenState extends State<ServiceOrderScreen> {
 
     if (!mounted) return;
     setState(() => _loading = false);
+    if (_isMakan) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FoodOrderTrackingScreen(
+            orderId: docId,
+            merchantName: originText.isNotEmpty ? originText : 'Merchant GasMakan',
+            merchantAddress: originText,
+            destinationAddress: destinationText,
+            itemsSummary: itemsText,
+            totalLabel: formattedFare,
+            paymentMethod: paymentCode,
+          ),
+        ),
+      );
+      if (!mounted) return;
+    }
     Navigator.pop(context, true);
   }
 

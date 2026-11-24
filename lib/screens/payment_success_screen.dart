@@ -6,15 +6,18 @@ const Color _lime = Color(0xFFC0F637);
 const Color _limeDeep = Color(0xFF8DBF1A);
 const Color _ink = Color(0xFF0A0F02);
 const Color _success = Color(0xFF22A559);
+const Color _unpaidAmber = Color(0xFFD97706);
 
-/// Halaman khusus "Pembayaran Berhasil" (dipakai untuk top up GasPay dan
-/// pembayaran perjalanan: GasPay, QRIS, maupun tunai).
+/// Halaman khusus "Pembayaran Berhasil" / "Pesanan Berhasil" (dipakai untuk top up GasPay dan
+/// pembayaran perjalanan / makanan: GasPay, QRIS, maupun tunai).
 class PaymentSuccessScreen extends StatefulWidget {
   final String title;
   final String receiverName;
   final String receiverSub;
   final String amountLabel;
   final String amountCaption;
+  final bool isPaid;
+  final String? paymentStatusNote;
   final List<MapEntry<String, String>> details;
   final VoidCallback? onDone;
 
@@ -25,6 +28,8 @@ class PaymentSuccessScreen extends StatefulWidget {
     required this.receiverSub,
     required this.amountLabel,
     this.amountCaption = 'Nominal Transaksi',
+    this.isPaid = true,
+    this.paymentStatusNote,
     this.details = const [],
     this.onDone,
   });
@@ -114,14 +119,16 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen>
                         child: Container(
                           width: 78,
                           height: 78,
-                          decoration: const BoxDecoration(
-                            color: _success,
+                          decoration: BoxDecoration(
+                            color: widget.isPaid ? _success : _unpaidAmber,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.check_rounded,
+                          child: Icon(
+                            widget.isPaid
+                                ? Icons.check_rounded
+                                : Icons.receipt_long_rounded,
                             color: Colors.white,
-                            size: 48,
+                            size: 44,
                           ),
                         ),
                       ),
@@ -132,12 +139,25 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen>
                           children: [
                             Text(
                               widget.title,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: tp,
-                                fontSize: 24,
+                                fontSize: 23,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
+                            if (widget.paymentStatusNote != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.paymentStatusNote!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: _unpaidAmber,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             Text(
                               _dateLabel,

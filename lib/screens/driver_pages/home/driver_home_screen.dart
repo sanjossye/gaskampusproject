@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
@@ -8,6 +10,9 @@ import '../profile/driver_profile_screen.dart';
 import '../../notifications_screen.dart';
 import '../../wallet_screen.dart';
 import '../../../services/map_route_service.dart';
+import '../../../services/ride_dispatch_service.dart';
+import '../../../widgets/driver_food_orders_section.dart';
+import '../../../widgets/driver_ride_orders_section.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -21,12 +26,18 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
+  final RideDispatchService _dispatch = RideDispatchService();
   bool _isWorking = true;
   int _navIndex = 0;
   bool _isLeaderboardExpanded = false;
 
-  // Modified: Using a non-final list initialized in initState
-  List<Map<String, dynamic>> _activeOrders = [];
+  String _driverName = 'Driver Mahasiswa';
+  String _vehicleBrand = 'Motor Kampus';
+  String _vehiclePlate = '-';
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+
+  // Tanpa orderan dummy: semua orderan antar & makan berasal real-time dari Firestore.
+  final List<Map<String, dynamic>> _activeOrders = [];
   LatLng _driverGps = MapRouteService.lastKnownDriverGps?.position ??
       MapRouteService.defaultDriverSpawn;
   StreamSubscription<DriverGpsResult>? _gpsSub;
@@ -34,38 +45,68 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _activeOrders = [
-      {
-        'name': 'Andi Pratama',
-        'price': 'Rp 12.000',
-        'from': 'Gedung Perpustakaan Pusat USU',
-        'to': 'Fakultas Teknik USU - Pintu 1',
-        'isPrimary': true,
-      },
-      {
-        'name': 'Siti Aisyah',
-        'price': 'Rp 15.500',
-        'from': 'Kantin FIB USU',
-        'to': 'Pintu 4 USU (Padang Bulan)',
-        'isPrimary': false,
-      },
-    ];
+    _listenDriverProfile();
     _initDeviceGps();
+  }
+
+  void _listenDriverProfile() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    _userSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((doc) {
+      if (!doc.exists || !mounted) return;
+      final data = doc.data() ?? {};
+      final profile = (data['driverProfile'] as Map<String, dynamic>?) ?? {};
+      setState(() {
+        _driverName = (data['name'] ?? _driverName).toString();
+        _vehicleBrand =
+            (data['vehicleBrand'] ?? profile['vehicleBrand'] ?? _vehicleBrand)
+                .toString();
+        _vehiclePlate =
+            (data['vehiclePlate'] ?? profile['vehiclePlate'] ?? _vehiclePlate)
+                .toString();
+        if (data['isOnline'] is bool) {
+          _isWorking = data['isOnline'] as bool;
+        }
+      });
+    });
+    _syncPresence();
+  }
+
+  Future<void> _syncPresence() async {
+    await _dispatch.syncDriverPresence(
+      isOnline: _isWorking,
+      position: _driverGps,
+      role: 'driver_kampus',
+      name: _driverName,
+      vehicleBrand: _vehicleBrand,
+      vehiclePlate: _vehiclePlate,
+    );
   }
 
   Future<void> _initDeviceGps() async {
     final gps = await MapRouteService.getCurrentDriverPosition();
     if (!mounted) return;
     setState(() => _driverGps = gps.position);
+    _syncPresence();
 
     _gpsSub = MapRouteService.watchDriverPosition().listen((liveGps) {
       if (!mounted) return;
+      final moved =
+          MapRouteService.distanceInMeters(_driverGps, liveGps.position);
       setState(() => _driverGps = liveGps.position);
+      if (moved > 25) {
+        _syncPresence();
+      }
     });
   }
 
   @override
   void dispose() {
+    _userSub?.cancel();
     _gpsSub?.cancel();
     super.dispose();
   }
@@ -146,6 +187,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             if (_isLeaderboardExpanded) _buildLeaderboardSection(isDark),
             _buildEarningsCard(isDark),
             _buildScheduleCard(isDark),
+            DriverRideOrdersSection(
+              isOnline: _isWorking,
+              driverName: _driverName,
+              driverRole: 'driver_kampus',
+              vehicleBrand: _vehicleBrand,
+              vehiclePlate: _vehiclePlate,
+              driverPosition: _driverGps,
+            ),
+            DriverFoodOrdersSection(driverName: _driverName),
             _buildOrdersSection(isDark),
           ],
         ),
@@ -207,7 +257,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     children: [
                       Row(
                         children: [
-                          Text('Budi Santoso',
+                          Text(_driverName,
                               style: TextStyle(color: textColorPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
                           Container(
@@ -334,6 +384,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     setState(() {
                       _isWorking = val;
                     });
+                    _syncPresence();
                   },
                   activeColor: kPrimary,
                   activeTrackColor: kPrimary.withOpacity(0.5),

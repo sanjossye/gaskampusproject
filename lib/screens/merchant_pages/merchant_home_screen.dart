@@ -791,7 +791,11 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
       final st = (doc.data()['status'] ?? 'pending').toString();
       if (_orderTabIndex == 0) return st == 'pending';
       if (_orderTabIndex == 1) {
-        return st == 'accepted' || st == 'preparing' || st == 'onTrip';
+        return st == 'accepted' ||
+            st == 'preparing' ||
+            st == 'going_to_merchant' ||
+            st == 'picked_up' ||
+            st == 'onTrip';
       }
       return st == 'completed' || st == 'cancelled';
     }).toList();
@@ -912,7 +916,7 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
                           ],
                           const SizedBox(height: 6),
                           Text(
-                            'Pembayaran: $method · Status: ${_statusLabel(status)}',
+                            'Pembayaran: $method (${(data['paymentStatus'] == 'unpaid' || (method.toLowerCase() == 'tunai' && data['paymentStatus'] != 'paid' && status != 'completed')) ? 'Belum Dibayar' : 'Lunas'}) · Status: ${_statusLabel(status)}',
                             style: _body(ts, 11.5, FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
@@ -955,41 +959,78 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
                               ],
                             )
                           else if (status == 'accepted' ||
-                              status == 'preparing')
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () => _merchantService
-                                    .updateOrderStatus(doc.id, 'onTrip'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimary,
-                                  foregroundColor: const Color(0xFF0A0F02),
-                                  elevation: 0,
-                                  shape: const StadiumBorder(),
+                              status == 'preparing' ||
+                              status == 'going_to_merchant')
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (status == 'going_to_merchant')
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'Driver sedang menuju toko untuk mengambil makanan.',
+                                      style: _body(
+                                        kPrimaryDeep,
+                                        12,
+                                        FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ElevatedButton.icon(
+                                  onPressed: () => _merchantService
+                                      .markFoodPickedUpByDriver(doc.id),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: const Color(0xFF0A0F02),
+                                    elevation: 0,
+                                    shape: const StadiumBorder(),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.inventory_2_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text(
+                                    'Makanan Telah Diambil Driver',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
-                                child: const Text(
-                                  'Siap Diantar Driver',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                              ],
+                            )
+                          else if (status == 'picked_up')
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline_rounded,
+                                  color: Color(0xFFFF9F43),
+                                  size: 18,
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Makanan telah diambil driver · menunggu pengantaran.',
+                                    style: _body(ts, 12.5, FontWeight.w600),
+                                  ),
+                                ),
+                              ],
                             )
                           else if (status == 'onTrip')
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () => _merchantService
-                                    .updateOrderStatus(doc.id, 'completed'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: const StadiumBorder(),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.two_wheeler_rounded,
+                                  color: kPrimaryDeep,
+                                  size: 18,
                                 ),
-                                child: const Text(
-                                  'Tandai Selesai',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Sedang diantar ke pemesan (driver akan centang Saya Sudah Sampai).',
+                                    style: _body(ts, 12, FontWeight.w600),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                         ],
                       ),
@@ -1005,8 +1046,10 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
     return switch (s) {
       'pending' => 'Menunggu Konfirmasi',
       'accepted' || 'preparing' => 'Sedang Disiapkan',
-      'onTrip' => 'Diantar ke Mahasiswa',
-      'completed' => 'Selesai',
+      'going_to_merchant' => 'Driver Menuju Merchant',
+      'picked_up' => 'Makanan Telah Diambil Driver',
+      'onTrip' => 'Sedang Diantar ke Pemesan',
+      'completed' => 'Selesai (Sudah Sampai)',
       'cancelled' => 'Dibatalkan',
       _ => s,
     };
