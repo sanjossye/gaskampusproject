@@ -35,6 +35,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   String _vehicleBrand = 'Motor Kampus';
   String _vehiclePlate = '-';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  Timer? _presenceTimer;
 
   // Tanpa orderan dummy: semua orderan antar & makan berasal real-time dari Firestore.
   final List<Map<String, dynamic>> _activeOrders = [];
@@ -47,6 +48,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     super.initState();
     _listenDriverProfile();
     _initDeviceGps();
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _syncPresence(),
+    );
   }
 
   void _listenDriverProfile() {
@@ -106,8 +111,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   @override
   void dispose() {
+    _presenceTimer?.cancel();
     _userSub?.cancel();
     _gpsSub?.cancel();
+    _dispatch.syncDriverPresence(
+      isOnline: false,
+      position: _driverGps,
+      role: 'driver_kampus',
+      name: _driverName,
+      vehicleBrand: _vehicleBrand,
+      vehiclePlate: _vehiclePlate,
+    );
     super.dispose();
   }
 
@@ -122,7 +136,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: _buildBodyContent(isDark),
+      body: DriverIncomingOrderListener(
+        isOnline: _isWorking,
+        driverName: _driverName,
+        driverRole: 'driver_kampus',
+        vehicleBrand: _vehicleBrand,
+        vehiclePlate: _vehiclePlate,
+        driverPosition: _driverGps,
+        onOrderAccepted: () {
+          if (mounted) setState(() => _navIndex = 0);
+        },
+        child: _buildBodyContent(isDark),
+      ),
       bottomNavigationBar: _buildBottomNav(isDark),
       floatingActionButton: _navIndex == 0 ? Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -185,8 +210,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           children: [
             _buildHeader(isDark),
             if (_isLeaderboardExpanded) _buildLeaderboardSection(isDark),
-            _buildEarningsCard(isDark),
-            _buildScheduleCard(isDark),
             DriverRideOrdersSection(
               isOnline: _isWorking,
               driverName: _driverName,
@@ -196,6 +219,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               driverPosition: _driverGps,
             ),
             DriverFoodOrdersSection(driverName: _driverName),
+            _buildEarningsCard(isDark),
+            _buildScheduleCard(isDark),
             _buildOrdersSection(isDark),
           ],
         ),

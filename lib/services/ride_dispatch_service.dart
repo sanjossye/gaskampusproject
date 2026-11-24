@@ -25,18 +25,67 @@ class _DriverCandidate {
 }
 
 /// Service pencocokan driver real-time untuk pesanan Antar (tanpa data dummy).
+/// Menggunakan heartbeat `lastSeenAt` agar akun driver lama / tab yang sudah ditutup
+/// TIDAK mencuri pesanan dari driver yang sedang aktif membuka aplikasi sekarang.
+///
 /// Urutan prioritas matching:
-/// 1. Driver Mahasiswa (`driver_kampus`) online terdekat (<= 3 km)
-/// 2. Jika tidak ada, Driver Umum (`driver_umum`) online terdekat (<= 3 km)
-/// 3. Jika tidak ada yang terdekat, masuk ke Driver aktif/online manapun
-///    (tetap mendahulukan Mahasiswa aktif lalu Umum aktif).
+/// 1. Driver Mahasiswa (`driver_kampus`) online & aktif saat ini, terdekat (<= 3 km)
+/// 2. Jika tidak ada, Driver Umum (`driver_umum`) online & aktif saat ini, terdekat (<= 3 km)
+/// 3. Jika tidak ada yang terdekat, masuk ke Driver aktif saat ini manapun
+///    (Mahasiswa aktif lalu Umum aktif)
+/// 4. Jika belum ada heartbeat driver / melewati timeout 15 detik -> order terbuka
+///    otomatis ke semua driver aktif online (Mahasiswa maupun Umum).
 class RideDispatchService {
   static const double _nearbyRadiusMeters = 3000.0;
+  static const int presenceFreshSeconds = 90;
+  static const int offerTimeoutSeconds = 15;
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Sinkronisasi status online + lokasi GPS driver ke Firestore `users/{uid}`
-  /// agar sistem dispatch dapat mendeteksi driver terdekat dan driver aktif.
+  /// Cek apakah driver benar-benar sedang online aktif sekarang (heartbeat <= 90 detik).
+  static bool isDriverPresenceFresh(Map<String, dynamic> data) {
+    if (data['isOnline'] != true) return false;
+    final raw = (data['lastSeenAt'] ?? '').toString().trim();
+    if (raw.isEmpty) return false;
+    final seen = DateTime.tryParse(raw);
+    if (seen == null) return false;
+    return DateTime.now().difference(seen).inSeconds <= presenceFreshSeconds;
+  }
+
+  /// Cek apakah sebuah pesanan antar layak ditampilkan & memunculkan notifikasi
+  /// ke driver dengan [driverUid] saat ini.
+  static bool isOfferOpenForDriver(
+    Map<String, dynamic> data,
+    String driverUid,
+  ) {
+    final st = (data['status'] ?? '').toString();
+    if (st != 'searching' && st != 'pending') return false;
+
+    final assignedDriver = (data['driverId'] ?? '').toString().trim();
+    if (assignedDriver.isNotEmpty) return false;
+
+    final rejected = (data['rejectedDrivers'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+    if (rejected.contains(driverUid)) return false;
+
+    final offeredTo = (data['offeredDriverId'] ?? '').toString().trim();
+    // 1. Ditargetkan langsung ke driver ini, atau terbuka untuk semua driver aktif
+    if (offeredTo.isEmpty || offeredTo == driverUid) return true;
+
+    // 2. Jika target sebelumnya tidak merespons > 15 detik, otomatis terbuka
+    //    ke driver aktif lain agar tidak macet.
+    final offeredAt = DateTime.tryParse((data['offeredAt'] ?? '').toString());
+    if (offeredAt != null &&
+        DateTime.now().difference(offeredAt).inSeconds >= offerTimeoutSeconds) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Sinkronisasi status online + heartbeat `lastSeenAt` + lokasi GPS driver
+  /// ke Firestore `users/{uid}` agar sistem dispatch mendeteksi driver aktif real-time.
   Future<void> syncDriverPresence({
     required bool isOnline,
     LatLng? position,
@@ -77,7 +126,7 @@ class RideDispatchService {
         .snapshots();
   }
 
-  /// Menentukan dan menawarkan pesanan antar ke driver online terbaik:
+  /// Menentukan dan menawarkan pesanan antar ke driver online yang benar-benar aktif sekarang:
   /// 1) Driver Mahasiswa terdekat -> 2) Driver Umum terdekat -> 3) Driver aktif lainnya.
   Future<Map<String, dynamic>> dispatchRideOrder({
     required String orderId,
@@ -97,6 +146,9 @@ class RideDispatchService {
         final data = doc.data();
         final role = (data['role'] ?? '').toString();
         if (role != 'driver_kampus' && role != 'driver_umum') continue;
+
+        // Hanya pilih driver yang benar-benar aktif membuka aplikasi sekarang
+        if (!isDriverPresenceFresh(data)) continue;
 
         final isActive = data['isActive'] != false;
         if (!isActive) continue;
@@ -156,7 +208,7 @@ class RideDispatchService {
           .toList()
         ..sort(byDistance);
 
-      // Prioritas 3: Semua driver aktif/online (Mahasiswa dulu lalu Umum)
+      // Prioritas 3: Semua driver aktif/online saat ini (Mahasiswa dulu lalu Umum)
       final activeStudents =
           candidates.where((c) => c.isStudentDriver).toList()..sort(byDistance);
       final activeGeneral =
@@ -207,6 +259,43 @@ class RideDispatchService {
         'dispatchTierLabel': 'Menunggu Driver Aktif Online',
       };
     }
+  }
+
+  /// Eskalasi otomatis bila driver yang ditawari tidak merespons > 15 detik:
+  /// teruskan ke driver berikutnya atau buka ke semua driver aktif online.
+  Future<void> escalateIfTimedOut({
+    required String orderId,
+    required LatLng pickupPos,
+  }) async {
+    try {
+      final ref = _db.collection('orders').doc(orderId);
+      final snap = await ref.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? {};
+      final st = (data['status'] ?? '').toString();
+      final driverId = (data['driverId'] ?? '').toString().trim();
+      if ((st != 'searching' && st != 'pending') || driverId.isNotEmpty) return;
+
+      final offeredTo = (data['offeredDriverId'] ?? '').toString().trim();
+      final offeredAt = DateTime.tryParse((data['offeredAt'] ?? '').toString());
+      final isExpired = offeredAt == null ||
+          DateTime.now().difference(offeredAt).inSeconds >= offerTimeoutSeconds;
+      if (!isExpired) return;
+
+      final excluded = (data['rejectedDrivers'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          <String>[];
+      if (offeredTo.isNotEmpty && !excluded.contains(offeredTo)) {
+        excluded.add(offeredTo);
+      }
+
+      await dispatchRideOrder(
+        orderId: orderId,
+        pickupPos: pickupPos,
+        excludedDriverIds: excluded,
+      );
+    } catch (_) {}
   }
 
   /// Driver menyetujui pesanan antar secara atomik (mencegah diambil 2 driver).

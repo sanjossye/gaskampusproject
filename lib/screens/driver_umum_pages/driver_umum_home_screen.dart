@@ -47,7 +47,6 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   int _totalTrips = 512;
   int _todayEarnings = 0;
   int _walletBalance = 0;
-  bool _isVerified = true;
   bool _isActive = true;
 
   // Stream subscription
@@ -67,6 +66,8 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   int _countdownSeconds = 15;
 
   List<Map<String, dynamic>> _activeOrders = [];
+  Timer? _presenceTimer;
+  bool _didInitialPresenceSync = false;
 
   @override
   void initState() {
@@ -76,6 +77,10 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
 
     _listenToFirebaseData();
     _initDeviceGps();
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _syncPresence(),
+    );
   }
 
   Future<void> _syncPresence() async {
@@ -126,10 +131,19 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
 
   @override
   void dispose() {
+    _presenceTimer?.cancel();
     _orderTimer?.cancel();
     _userSub?.cancel();
     _walletSub?.cancel();
     _gpsStreamSub?.cancel();
+    _dispatch.syncDriverPresence(
+      isOnline: false,
+      position: _driverGps,
+      role: 'driver_umum',
+      name: _driverName,
+      vehicleBrand: _vehicleBrand,
+      vehiclePlate: _vehiclePlate,
+    );
     super.dispose();
   }
 
@@ -151,14 +165,15 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
             _rating = (data['rating'] as num?)?.toDouble() ?? (profile['rating'] as num?)?.toDouble() ?? _rating;
             _totalTrips = (data['totalTrips'] as num?)?.toInt() ?? (profile['totalTrips'] as num?)?.toInt() ?? _totalTrips;
             _todayEarnings = (data['todayEarnings'] as num?)?.toInt() ?? _todayEarnings;
-            _isVerified = data['isVerified'] ?? true;
             _isActive = data['isActive'] ?? true;
-            if (data['isOnline'] != null) {
+            if (data['isOnline'] is bool) {
               _isWorking = data['isOnline'] as bool;
-            } else if (profile['isOnline'] != null) {
-              _isWorking = profile['isOnline'] as bool;
             }
           });
+          if (!_didInitialPresenceSync) {
+            _didInitialPresenceSync = true;
+            _syncPresence();
+          }
         }
       });
 
@@ -189,8 +204,8 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
   }
 
   Future<void> _updateOnlineStatus(bool val) async {
-    // README Bagian 2: Driver yang belum diverifikasi / aktif tidak bisa online!
-    if (val && (!_isVerified || !_isActive)) {
+    // Hanya blokir jika akun dinonaktifkan/suspend oleh Admin
+    if (val && !_isActive) {
       _showVerificationWarningDialog();
       return;
     }
@@ -200,10 +215,11 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'isOnline': val,
+          'lastSeenAt': DateTime.now().toIso8601String(),
           'updatedAt': DateTime.now().toIso8601String(),
-        });
+        }, SetOptions(merge: true));
       } catch (_) {}
     }
   }
@@ -546,7 +562,18 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: _buildBodyContent(isDark),
+      body: DriverIncomingOrderListener(
+        isOnline: _isWorking,
+        driverName: _driverName,
+        driverRole: 'driver_umum',
+        vehicleBrand: _vehicleBrand,
+        vehiclePlate: _vehiclePlate,
+        driverPosition: _driverGps,
+        onOrderAccepted: () {
+          if (mounted) setState(() => _navIndex = 0);
+        },
+        child: _buildBodyContent(isDark),
+      ),
       bottomNavigationBar: _buildBottomNav(isDark),
       floatingActionButton: _navIndex == 0
           ? Container(
@@ -611,8 +638,6 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
           children: [
             _buildHeader(isDark),
             if (_isLeaderboardExpanded) _buildLeaderboardSection(isDark),
-            _buildEarningsCard(isDark),
-            _buildScheduleShiftCard(isDark),
             DriverRideOrdersSection(
               isOnline: _isWorking,
               driverName: _driverName,
@@ -622,6 +647,8 @@ class _DriverUmumHomeScreenState extends State<DriverUmumHomeScreen> {
               driverPosition: _driverGps,
             ),
             DriverFoodOrdersSection(driverName: _driverName),
+            _buildEarningsCard(isDark),
+            _buildScheduleShiftCard(isDark),
             _buildOrdersSection(isDark),
           ],
         ),

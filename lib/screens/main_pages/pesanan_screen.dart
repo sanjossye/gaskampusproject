@@ -2839,6 +2839,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
   int _tripEtaMinutes = 3;
   Timer? _phaseTimer;
   Timer? _otwTimer;
+  Timer? _escalateTimer;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _orderSub;
   String _driverName = 'Driver GasKampus';
   String _driverVehicle = 'Motor Kampus';
@@ -2887,6 +2888,14 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
 
   void _listenLiveRideOrder() {
     if (widget.orderId.isEmpty || widget.orderId.startsWith('ride_')) return;
+    _escalateTimer?.cancel();
+    _escalateTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted || _phase != _RidePhase.searching) return;
+      RideDispatchService().escalateIfTimedOut(
+        orderId: widget.orderId,
+        pickupPos: _pickupLatLng,
+      );
+    });
     _orderSub = FirebaseFirestore.instance
         .collection('orders')
         .doc(widget.orderId)
@@ -2922,6 +2931,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
 
       if ((status == 'accepted' || status == 'onPickup') && !_hasHandledFound) {
         _hasHandledFound = true;
+        _escalateTimer?.cancel();
         final startPos = (dLat != null && dLng != null)
             ? LatLng(dLat, dLng)
             : LatLng(
@@ -3786,6 +3796,7 @@ class _ActiveOrderScreenState extends State<_ActiveOrderScreen>
   @override
   void dispose() {
     _orderSub?.cancel();
+    _escalateTimer?.cancel();
     _simulationTimer?.cancel();
     _phaseTimer?.cancel();
     _otwTimer?.cancel();
