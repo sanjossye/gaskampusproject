@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../models/merchant_model.dart';
 import '../../../services/admin_merchant_service.dart';
 import '../../../services/merchant_service.dart';
@@ -60,18 +59,15 @@ class _AdminMerchantManagementScreenState
     }
   }
 
-  // ── 1. MODAL PENDAFTARAN MERCHANT BARU OLEH ADMIN ─────────────────────────
-  void _showRegisterMerchantModal() {
+  // ── 1. MODAL TAMBAH TITIK KANTIN OLEH ADMIN (UNCLAIMED LISTING) ───────────
+  void _showAddStoreModal() {
     final storeNameCtrl = TextEditingController();
-    final ownerNameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passwordCtrl = TextEditingController(text: 'kantin123');
-    final phoneCtrl = TextEditingController();
     final addressCtrl = TextEditingController();
+    final ownerNameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
 
     String selectedCategory = kMerchantCategories.first;
     String selectedTheme = 'orange';
-    bool obscurePassword = true;
     bool isLoading = false;
 
     showModalBottomSheet(
@@ -87,7 +83,7 @@ class _AdminMerchantManagementScreenState
             final textSec = isDark ? Colors.white70 : Colors.black54;
 
             return Container(
-              height: MediaQuery.of(context).size.height * 0.90,
+              height: MediaQuery.of(context).size.height * 0.85,
               decoration: BoxDecoration(
                 color: bgCard,
                 borderRadius:
@@ -124,7 +120,7 @@ class _AdminMerchantManagementScreenState
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
-                            Icons.store_mall_directory_rounded,
+                            Icons.add_location_alt_rounded,
                             color: Colors.green,
                             size: 24,
                           ),
@@ -135,7 +131,7 @@ class _AdminMerchantManagementScreenState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Daftarkan Merchant Baru',
+                                'Tambah Titik Kantin Kampus',
                                 style: TextStyle(
                                   color: textColor,
                                   fontWeight: FontWeight.bold,
@@ -143,7 +139,7 @@ class _AdminMerchantManagementScreenState
                                 ),
                               ),
                               Text(
-                                'Buat akun & toko resmi kantin kampus',
+                                'Petakan lokasi kantin (siap diklaim pemiliknya)',
                                 style: TextStyle(
                                   color: textSec,
                                   fontSize: 12,
@@ -174,24 +170,25 @@ class _AdminMerchantManagementScreenState
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withValues(alpha: 0.1),
+                              color: Colors.amber.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: Colors.blue.withValues(alpha: 0.3)),
+                                  color: Colors.amber.withValues(alpha: 0.4)),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.info_outline,
-                                    color: Colors.blue, size: 20),
+                                const Icon(Icons.lightbulb_outline,
+                                    color: Colors.amber, size: 20),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Admin mendaftarkan toko secara langsung. Email & password dapat diserahkan ke pemilik kantin untuk login.',
+                                    'Admin hanya menandai lokasi kantin & jenis jualannya. Akun login dan daftar menu akan dilengkapi oleh pemilik kantin saat proses klaim / ambil alih toko.',
                                     style: TextStyle(
-                                        fontSize: 11,
-                                        color: isDark
-                                            ? Colors.white70
-                                            : Colors.blue[900]),
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.amber[900],
+                                    ),
                                   ),
                                 ),
                               ],
@@ -204,79 +201,8 @@ class _AdminMerchantManagementScreenState
                             controller: storeNameCtrl,
                             decoration: InputDecoration(
                               labelText: 'Nama Kantin / Toko*',
-                              hintText: 'Misal: Kantin Fasilkom Bu Dewi',
+                              hintText: 'Misal: Kantin Fasilkom Bu Siti',
                               prefixIcon: const Icon(Icons.storefront_rounded),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Nama Pemilik
-                          TextField(
-                            controller: ownerNameCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Nama Pemilik Kantin*',
-                              hintText: 'Misal: Ibu Dewi Anggraini',
-                              prefixIcon: const Icon(Icons.person_outline),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Nomor WhatsApp / HP
-                          TextField(
-                            controller: phoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            decoration: InputDecoration(
-                              labelText: 'Nomor WhatsApp / HP*',
-                              hintText: 'Misal: 081234567890',
-                              prefixIcon: const Icon(Icons.phone_outlined),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Email Akun Login
-                          TextField(
-                            controller: emailCtrl,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              labelText: 'Email Akun Login*',
-                              hintText: 'Misal: dewi.kantin@gmail.com',
-                              prefixIcon: const Icon(Icons.email_outlined),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Password Akun Login
-                          TextField(
-                            controller: passwordCtrl,
-                            obscureText: obscurePassword,
-                            decoration: InputDecoration(
-                              labelText: 'Password Akun Login*',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setModalState(() {
-                                    obscurePassword = !obscurePassword;
-                                  });
-                                },
-                              ),
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               isDense: true,
@@ -289,7 +215,7 @@ class _AdminMerchantManagementScreenState
                             isExpanded: true,
                             value: selectedCategory,
                             decoration: InputDecoration(
-                              labelText: 'Kategori Makanan / Minuman*',
+                              labelText: 'Kategori / Jual Apa?*',
                               prefixIcon: Icon(
                                 _getCategoryIcon(selectedCategory),
                                 color: _getCategoryColor(selectedCategory),
@@ -317,12 +243,57 @@ class _AdminMerchantManagementScreenState
                           ),
                           const SizedBox(height: 12),
 
+                          // Alamat Lokasi di Kampus
+                          TextField(
+                            controller: addressCtrl,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              labelText: 'Lokasi di Area Kampus / Alamat*',
+                              hintText:
+                                  'Misal: Kantin Gedung B Lt. 1 Fasilkom USU',
+                              prefixIcon:
+                                  const Icon(Icons.location_on_outlined),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Nama Pemilik (Opsional)
+                          TextField(
+                            controller: ownerNameCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Nama Pemilik / Pengelola (Opsional)',
+                              hintText: 'Misal: Ibu Siti (Boleh dikosongkan)',
+                              prefixIcon: const Icon(Icons.person_outline),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Nomor WhatsApp / HP (Opsional)
+                          TextField(
+                            controller: phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: 'No WhatsApp / HP (Opsional)',
+                              hintText: 'Misal: 081200008801',
+                              prefixIcon: const Icon(Icons.phone_outlined),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
                           // Tema Tampilan Banner Toko
                           DropdownButtonFormField<String>(
                             isExpanded: true,
                             value: selectedTheme,
                             decoration: InputDecoration(
-                              labelText: 'Tema Warna Banner Toko',
+                              labelText: 'Warna Tema Banner',
                               prefixIcon:
                                   const Icon(Icons.color_lens_outlined),
                               border: OutlineInputBorder(
@@ -362,21 +333,6 @@ class _AdminMerchantManagementScreenState
                               }
                             },
                           ),
-                          const SizedBox(height: 12),
-
-                          // Alamat Lokasi di Kampus
-                          TextField(
-                            controller: addressCtrl,
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              labelText: 'Alamat / Lokasi di Area Kampus*',
-                              hintText:
-                                  'Misal: Kantin Pusat USU Lt. 1, Jl. Universitas No. 9, Medan',
-                              prefixIcon: const Icon(Icons.location_on_outlined),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
                           const SizedBox(height: 20),
                         ],
                       ),
@@ -398,7 +354,7 @@ class _AdminMerchantManagementScreenState
                       child: SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: ElevatedButton(
+                        child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: kPrimary,
                             foregroundColor: Colors.black87,
@@ -406,80 +362,10 @@ class _AdminMerchantManagementScreenState
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          onPressed: isLoading
-                              ? null
-                              : () async {
-                                  final storeName = storeNameCtrl.text.trim();
-                                  final ownerName = ownerNameCtrl.text.trim();
-                                  final email = emailCtrl.text.trim();
-                                  final password = passwordCtrl.text.trim();
-                                  final phone = phoneCtrl.text.trim();
-                                  final address = addressCtrl.text.trim();
-
-                                  if (storeName.isEmpty ||
-                                      ownerName.isEmpty ||
-                                      email.isEmpty ||
-                                      password.isEmpty ||
-                                      phone.isEmpty ||
-                                      address.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Harap lengkapi semua data formulir merchant.'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  if (password.length < 6) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Password minimal 6 karakter.'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  setModalState(() => isLoading = true);
-
-                                  final res = await AdminMerchantService
-                                      .registerMerchantByAdmin(
-                                    email: email,
-                                    password: password,
-                                    storeName: storeName,
-                                    ownerName: ownerName,
-                                    phone: phone,
-                                    category: selectedCategory,
-                                    address: address,
-                                    bannerTheme: selectedTheme,
-                                  );
-
-                                  setModalState(() => isLoading = false);
-
-                                  if (res['success'] == true) {
-                                    if (!context.mounted) return;
-                                    Navigator.pop(ctx);
-                                    _showSuccessRegisteredDialog(
-                                      storeName: storeName,
-                                      ownerName: ownerName,
-                                      email: email,
-                                      password: password,
-                                    );
-                                  } else {
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(res['error'] ??
-                                            'Gagal mendaftarkan merchant.'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                },
-                          child: isLoading
+                          icon: isLoading
+                              ? const SizedBox.shrink()
+                              : const Icon(Icons.check_circle_rounded, size: 20),
+                          label: isLoading
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
@@ -489,12 +375,66 @@ class _AdminMerchantManagementScreenState
                                   ),
                                 )
                               : const Text(
-                                  'Daftarkan Merchant Sekarang',
+                                  'Simpan Titik Kantin',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
                                   ),
                                 ),
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  final storeName = storeNameCtrl.text.trim();
+                                  final address = addressCtrl.text.trim();
+                                  final ownerName = ownerNameCtrl.text.trim();
+                                  final phone = phoneCtrl.text.trim();
+
+                                  if (storeName.isEmpty || address.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Nama Kantin dan Alamat lokasi wajib diisi.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setModalState(() => isLoading = true);
+
+                                  final res = await AdminMerchantService
+                                      .addStoreListingByAdmin(
+                                    storeName: storeName,
+                                    category: selectedCategory,
+                                    address: address,
+                                    ownerName: ownerName,
+                                    phone: phone,
+                                    bannerTheme: selectedTheme,
+                                  );
+
+                                  setModalState(() => isLoading = false);
+
+                                  if (res['success'] == true) {
+                                    if (!context.mounted) return;
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Titik kantin "$storeName" berhasil ditambahkan dan siap diklaim!'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(res['error'] ??
+                                            'Gagal menambahkan titik kantin.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
                         ),
                       ),
                     ),
@@ -508,89 +448,7 @@ class _AdminMerchantManagementScreenState
     );
   }
 
-  // ── 2. DIALOG BERHASIL DIDAFTARKAN (DENGAN TOMBOL SALIN AKUN) ───────────────
-  void _showSuccessRegisteredDialog({
-    required String storeName,
-    required String ownerName,
-    required String email,
-    required String password,
-  }) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
-            SizedBox(width: 10),
-            Text('Merchant Terdaftar!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Toko "$storeName" berhasil dibuat dan langsung terhubung real-time ke aplikasi Mahasiswa.',
-              style: const TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('INFO LOGIN PEMILIK KANTIN:',
-                      style:
-                          TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Text('Pemilik: $ownerName',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                  Text('Email: $email', style: const TextStyle(fontSize: 12)),
-                  Text('Password: $password',
-                      style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.copy_rounded, size: 16),
-            label: const Text('Salin Info Akun'),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(
-                text:
-                    'Akun Merchant GasKampus:\nNama Toko: $storeName\nPemilik: $ownerName\nEmail: $email\nPassword: $password',
-              ));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Info akun merchant berhasil disalin!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimary,
-              foregroundColor: Colors.black,
-            ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Selesai'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 3. MODAL EDIT TOKO OLEH ADMIN ──────────────────────────────────────────
+  // ── 2. MODAL EDIT TOKO OLEH ADMIN ──────────────────────────────────────────
   void _showEditMerchantModal(MerchantModel merchant) {
     final nameCtrl = TextEditingController(text: merchant.name);
     final ownerCtrl = TextEditingController(text: merchant.ownerName);
@@ -646,7 +504,7 @@ class _AdminMerchantManagementScreenState
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Edit Data Toko',
+                            'Edit Data Titik Kantin',
                             style: TextStyle(
                               color: textColor,
                               fontWeight: FontWeight.bold,
@@ -678,31 +536,11 @@ class _AdminMerchantManagementScreenState
                             ),
                           ),
                           const SizedBox(height: 12),
-                          TextField(
-                            controller: ownerCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Nama Pemilik',
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: phoneCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'No WhatsApp / HP',
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
                             isExpanded: true,
                             value: category,
                             decoration: InputDecoration(
-                              labelText: 'Kategori',
+                              labelText: 'Kategori / Jual Apa?',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               isDense: true,
@@ -724,9 +562,19 @@ class _AdminMerchantManagementScreenState
                           ),
                           const SizedBox(height: 12),
                           TextField(
-                            controller: headlineCtrl,
+                            controller: addressCtrl,
+                            maxLines: 2,
                             decoration: InputDecoration(
-                              labelText: 'Slogan Banner Promo',
+                              labelText: 'Alamat Lokasi Kampus',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: ownerCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Nama Pemilik',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               isDense: true,
@@ -734,12 +582,22 @@ class _AdminMerchantManagementScreenState
                           ),
                           const SizedBox(height: 12),
                           TextField(
-                            controller: addressCtrl,
-                            maxLines: 2,
+                            controller: phoneCtrl,
                             decoration: InputDecoration(
-                              labelText: 'Alamat Lokasi Kampus',
+                              labelText: 'No WhatsApp / HP',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: headlineCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Slogan Banner Promo',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -776,7 +634,7 @@ class _AdminMerchantManagementScreenState
                             );
                             messenger.showSnackBar(
                               const SnackBar(
-                                content: Text('Data toko berhasil diubah.'),
+                                content: Text('Data kantin berhasil diubah.'),
                                 backgroundColor: Colors.green,
                               ),
                             );
@@ -796,14 +654,14 @@ class _AdminMerchantManagementScreenState
     );
   }
 
-  // ── 4. KONFIRMASI HAPUS TOKO ───────────────────────────────────────────────
+  // ── 3. KONFIRMASI HAPUS TOKO ───────────────────────────────────────────────
   void _confirmDeleteMerchant(MerchantModel merchant) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Hapus Toko ${merchant.name}?'),
+        title: Text('Hapus Titik Toko ${merchant.name}?'),
         content: Text(
-          'Toko ini akan dihapus dari daftar merchant dan tidak akan muncul lagi di aplikasi Mahasiswa.',
+          'Titik kantin "${merchant.name}" akan dihapus dari peta dan tidak akan muncul di aplikasi Mahasiswa.',
         ),
         actions: [
           TextButton(
@@ -821,7 +679,7 @@ class _AdminMerchantManagementScreenState
               await AdminMerchantService.deleteMerchant(merchant.id);
               messenger.showSnackBar(
                 SnackBar(
-                  content: Text('Toko "${merchant.name}" berhasil dihapus.'),
+                  content: Text('Titik kantin "${merchant.name}" berhasil dihapus.'),
                   backgroundColor: Colors.red,
                 ),
               );
@@ -860,7 +718,7 @@ class _AdminMerchantManagementScreenState
               ),
             ),
             Text(
-              'Pendaftaran & Pengawasan Toko Kampus',
+              'Pemetaan Titik Kantin Kampus',
               style: TextStyle(color: textSecondary, fontSize: 11),
             ),
           ],
@@ -879,12 +737,12 @@ class _AdminMerchantManagementScreenState
                 ),
                 elevation: 0,
               ),
-              icon: const Icon(Icons.add_business_rounded, size: 18),
+              icon: const Icon(Icons.add_location_alt_rounded, size: 18),
               label: const Text(
-                'Daftar Baru',
+                'Tambah Titik',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
-              onPressed: _showRegisterMerchantModal,
+              onPressed: _showAddStoreModal,
             ),
           ),
         ],
@@ -894,9 +752,8 @@ class _AdminMerchantManagementScreenState
         builder: (context, snapshot) {
           final merchants = snapshot.data ?? [];
           final totalStores = merchants.length;
-          final openStores = merchants.where((m) => m.isOpen).length;
-          final totalMenus =
-              merchants.fold<int>(0, (acc, m) => acc + m.menus.length);
+          final unclaimedStores = merchants.where((m) => !m.isClaimed || m.ownerUid == 'unclaimed').length;
+          final claimedStores = totalStores - unclaimedStores;
 
           // Filter berdasarkan search query dan kategori
           final filteredMerchants = merchants.where((m) {
@@ -928,20 +785,20 @@ class _AdminMerchantManagementScreenState
                       ),
                       const SizedBox(width: 8),
                       _buildSummaryCard(
-                        title: 'Kantin Buka',
-                        count: '$openStores',
-                        color: Colors.green,
-                        icon: Icons.check_circle_outline,
+                        title: 'Siap Diklaim',
+                        count: '$unclaimedStores',
+                        color: Colors.amber,
+                        icon: Icons.pending_actions_rounded,
                         cardBg: cardBg,
                         border: borderColor,
                         textPrimary: textPrimary,
                       ),
                       const SizedBox(width: 8),
                       _buildSummaryCard(
-                        title: 'Total Menu',
-                        count: '$totalMenus',
-                        color: Colors.orange,
-                        icon: Icons.restaurant_menu_rounded,
+                        title: 'Sudah Diklaim',
+                        count: '$claimedStores',
+                        color: Colors.green,
+                        icon: Icons.verified_rounded,
                         cardBg: cardBg,
                         border: borderColor,
                         textPrimary: textPrimary,
@@ -959,7 +816,7 @@ class _AdminMerchantManagementScreenState
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
                     decoration: InputDecoration(
-                      hintText: 'Cari nama kantin, pemilik, atau lokasi...',
+                      hintText: 'Cari nama kantin atau lokasi...',
                       hintStyle:
                           TextStyle(color: textSecondary, fontSize: 13),
                       prefixIcon: Icon(Icons.search_rounded,
@@ -1038,7 +895,7 @@ class _AdminMerchantManagementScreenState
                                 color: textSecondary.withValues(alpha: 0.5)),
                             const SizedBox(height: 12),
                             Text(
-                              'Belum ada kantin terdaftar',
+                              'Belum ada titik kantin terdaftar',
                               style: TextStyle(
                                 color: textPrimary,
                                 fontWeight: FontWeight.bold,
@@ -1047,7 +904,7 @@ class _AdminMerchantManagementScreenState
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Klik tombol "Daftar Baru" untuk mendaftarkan kantin kampus.',
+                              'Klik "Tambah Titik" untuk menandai kantin kampus.',
                               style: TextStyle(
                                   color: textSecondary, fontSize: 12),
                             ),
@@ -1060,9 +917,9 @@ class _AdminMerchantManagementScreenState
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Daftarkan Sekarang'),
-                              onPressed: _showRegisterMerchantModal,
+                              icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+                              label: const Text('Tandai Kantin Sekarang'),
+                              onPressed: _showAddStoreModal,
                             ),
                           ],
                         ),
@@ -1162,6 +1019,7 @@ class _AdminMerchantManagementScreenState
   }) {
     final themeStyle = merchantBannerThemeFor(merchant.bannerTheme);
     final catColor = _getCategoryColor(merchant.category);
+    final bool isUnclaimed = !merchant.isClaimed || merchant.ownerUid == 'unclaimed';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1169,7 +1027,9 @@ class _AdminMerchantManagementScreenState
         color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: merchant.isOpen ? border : Colors.red.withValues(alpha: 0.3),
+          color: isUnclaimed
+              ? Colors.amber.withValues(alpha: 0.5)
+              : border,
         ),
         boxShadow: [
           BoxShadow(
@@ -1217,13 +1077,13 @@ class _AdminMerchantManagementScreenState
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: merchant.isOpen
-                        ? Colors.green.shade700
-                        : Colors.red.shade700,
+                    color: isUnclaimed
+                        ? Colors.amber.shade900
+                        : Colors.green.shade700,
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    merchant.isOpen ? 'BUKA' : 'TUTUP',
+                    isUnclaimed ? 'SIAP DIKLAIM' : 'TERVERIFIKASI',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 9,
@@ -1273,14 +1133,28 @@ class _AdminMerchantManagementScreenState
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              const Icon(Icons.person_outline,
-                                  size: 13, color: Colors.grey),
+                              Icon(
+                                isUnclaimed
+                                    ? Icons.info_outline
+                                    : Icons.person_outline,
+                                size: 13,
+                                color: isUnclaimed ? Colors.amber : Colors.grey,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  'Pemilik: ${merchant.ownerName.isNotEmpty ? merchant.ownerName : "-"}',
+                                  isUnclaimed
+                                      ? 'Belum diklaim pemilik kantin'
+                                      : 'Pemilik: ${merchant.ownerName}',
                                   style: TextStyle(
-                                      color: textSecondary, fontSize: 11),
+                                    color: isUnclaimed
+                                        ? Colors.amber
+                                        : textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: isUnclaimed
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -1307,38 +1181,6 @@ class _AdminMerchantManagementScreenState
                         style: TextStyle(color: textSecondary, fontSize: 11),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                // No WhatsApp & Jumlah Menu
-                Row(
-                  children: [
-                    const Icon(Icons.phone_outlined,
-                        size: 13, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      merchant.phone.isNotEmpty ? merchant.phone : '-',
-                      style: TextStyle(color: textSecondary, fontSize: 11),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${merchant.menus.length} Menu',
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
                       ),
                     ),
                   ],
@@ -1379,7 +1221,7 @@ class _AdminMerchantManagementScreenState
                     // Edit Toko
                     IconButton(
                       icon: const Icon(Icons.edit_outlined, size: 18),
-                      tooltip: 'Edit Data Toko',
+                      tooltip: 'Edit Data Titik Kantin',
                       color: Colors.blue,
                       onPressed: () => _showEditMerchantModal(merchant),
                     ),
@@ -1388,7 +1230,7 @@ class _AdminMerchantManagementScreenState
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded,
                           size: 18),
-                      tooltip: 'Hapus Toko',
+                      tooltip: 'Hapus Titik Kantin',
                       color: Colors.red,
                       onPressed: () => _confirmDeleteMerchant(merchant),
                     ),

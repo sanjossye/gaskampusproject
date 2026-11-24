@@ -78,6 +78,8 @@ class MerchantModel {
   final String bannerHeadline;
   final String bannerTheme; // 'lime' | 'orange' | 'emerald' | 'berry' | 'dark'
   final bool isOpen;
+  final bool isClaimed;
+  final String registeredBy;
   final double rating;
   final int totalOrders;
   final List<MerchantMenuItem> menus;
@@ -98,6 +100,8 @@ class MerchantModel {
     this.bannerHeadline = '',
     this.bannerTheme = 'lime',
     this.isOpen = true,
+    this.isClaimed = true,
+    this.registeredBy = 'self',
     this.rating = 4.9,
     this.totalOrders = 0,
     this.menus = const [],
@@ -122,9 +126,12 @@ class MerchantModel {
       }
     }
 
+    final ownerUid = (data['ownerUid'] ?? docId).toString();
+    final bool isClaimed = data['isClaimed'] ?? (ownerUid != 'unclaimed' && ownerUid.isNotEmpty);
+
     return MerchantModel(
       id: docId,
-      ownerUid: (data['ownerUid'] ?? docId).toString(),
+      ownerUid: ownerUid,
       name: (data['name'] ?? 'Toko Makanan').toString(),
       ownerName: (data['ownerName'] ?? '').toString(),
       phone: (data['phone'] ?? '').toString(),
@@ -136,6 +143,8 @@ class MerchantModel {
       bannerHeadline: (data['bannerHeadline'] ?? '').toString(),
       bannerTheme: (data['bannerTheme'] ?? 'lime').toString(),
       isOpen: data['isOpen'] ?? true,
+      isClaimed: isClaimed,
+      registeredBy: (data['registeredBy'] ?? (isClaimed ? 'self' : 'admin')).toString(),
       rating: (data['rating'] as num?)?.toDouble() ?? 4.9,
       totalOrders: (data['totalOrders'] as num?)?.toInt() ?? 0,
       menus: parsedMenus,
@@ -162,6 +171,8 @@ class MerchantModel {
       'bannerHeadline': bannerHeadline,
       'bannerTheme': bannerTheme,
       'isOpen': isOpen,
+      'isClaimed': isClaimed,
+      'registeredBy': registeredBy,
       'rating': rating,
       'totalOrders': totalOrders,
       'menus': menus.map((m) => m.toMap()).toList(),
@@ -184,6 +195,8 @@ class MerchantModel {
     String? bannerHeadline,
     String? bannerTheme,
     bool? isOpen,
+    bool? isClaimed,
+    String? registeredBy,
     double? rating,
     int? totalOrders,
     List<MerchantMenuItem>? menus,
@@ -204,6 +217,8 @@ class MerchantModel {
       bannerHeadline: bannerHeadline ?? this.bannerHeadline,
       bannerTheme: bannerTheme ?? this.bannerTheme,
       isOpen: isOpen ?? this.isOpen,
+      isClaimed: isClaimed ?? this.isClaimed,
+      registeredBy: registeredBy ?? this.registeredBy,
       rating: rating ?? this.rating,
       totalOrders: totalOrders ?? this.totalOrders,
       menus: menus ?? this.menus,
