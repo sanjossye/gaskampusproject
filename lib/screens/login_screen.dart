@@ -7,6 +7,7 @@ import 'main_pages/home_screen.dart';
 import 'driver_pages/home/driver_home_screen.dart';
 import 'admin_pages/admin_home_screen.dart';
 import 'driver_umum_pages/driver_umum_home_screen.dart';
+import 'merchant_pages/merchant_home_screen.dart';
 
 const Color kPrimary = Color(0xFFC0F637);
 const Color kBackgroundLight = Color(0xFFF7F8F5);
@@ -316,6 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final Widget home = switch (user.role) {
         'driver_kampus' => const DriverHomeScreen(),
         'driver_umum' => const DriverUmumHomeScreen(),
+        'merchant' => const MerchantHomeScreen(),
         'admin' => const AdminHomeScreen(),
         _ => const HomeScreen(),
       };
@@ -340,8 +342,9 @@ class _LoginScreenState extends State<LoginScreen> {
         'Data dummy siap.\n'
         'Mahasiswa: mahasiswa, mahasiswa2, mahasiswa3\n'
         'Driver: driverm, driverm2, driveru, driveru2\n'
+        'Merchant: merchant, merchant2\n'
         'Admin: admin | Pass: ${SeedService.demoPassword}\n'
-        '6 zona USU (A–F) ditulis ke Firestore.',
+        '6 zona USU (A–F) & toko makanan ditulis ke Firestore.',
         Colors.green,
       );
     } catch (e) {

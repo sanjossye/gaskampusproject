@@ -70,12 +70,15 @@ class AuthService {
     required String password,
     required String name,
     required String username,
-    required String role, // mahasiswa, driver_kampus, driver_umum, admin
+    required String role, // mahasiswa, driver_kampus, driver_umum, merchant, admin
     String? nim,
     String? nik,
     String? phone,
     String? faculty,
     String? jurusan,
+    String? storeName,
+    String? storeCategory,
+    String? storeAddress,
   }) async {
     final normalizedUsername = normalizeIdentifier(username);
 
@@ -135,14 +138,19 @@ class AuthService {
       role: role,
       facultas: faculty,
       jurusan: jurusan,
-      isVerified: role == 'mahasiswa' || role == 'admin',
+      isVerified:
+          role == 'mahasiswa' || role == 'admin' || role == 'merchant',
       createdAt: now,
       updatedAt: now,
     );
 
     // Tulis users/{uid}, wallets/{uid}, dan semua dokumen login_index dalam satu WriteBatch
     final batch = _db.batch();
-    batch.set(_users.doc(user.uid), user.toMap());
+    final userData = user.toMap();
+    if (storeName != null) userData['storeName'] = storeName;
+    if (storeCategory != null) userData['storeCategory'] = storeCategory;
+    if (storeAddress != null) userData['storeAddress'] = storeAddress;
+    batch.set(_users.doc(user.uid), userData);
     batch.set(_db.collection('wallets').doc(user.uid), {
       'userId': user.uid,
       'balance': 0,

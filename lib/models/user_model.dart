@@ -1,4 +1,4 @@
-/// Model data user untuk semua role (mahasiswa, driver_kampus, driver_umum, admin).
+/// Model data user untuk semua role (mahasiswa, driver_kampus, driver_umum, merchant, admin).
 /// Firestore collection: `users`
 class UserModel {
   final String uid;
@@ -152,6 +152,9 @@ class UserModel {
 
   /// Cek apakah user adalah mahasiswa (passenger)
   bool get isMahasiswa => role == 'mahasiswa';
+
+  /// Cek apakah user adalah merchant (pemilik toko makanan)
+  bool get isMerchant => role == 'merchant';
 
   @override
   String toString() => 'UserModel(uid: $uid, name: $name, role: $role)';

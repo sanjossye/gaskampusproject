@@ -30,9 +30,9 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 3,
+      length: 4,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 2),
+      initialIndex: widget.initialTab.clamp(0, 3),
     );
   }
 
@@ -40,7 +40,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
   void didUpdateWidget(covariant AdminDriversScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialTab != oldWidget.initialTab) {
-      _tabController.animateTo(widget.initialTab.clamp(0, 2));
+      _tabController.animateTo(widget.initialTab.clamp(0, 3));
     }
   }
 
@@ -197,10 +197,10 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                         CircleAvatar(
                           radius: 22,
                           backgroundColor: kPrimary.withOpacity(0.2),
-                          backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                          backgroundImage: (user.photoUrl != null && user.photoUrl!.startsWith('http'))
                               ? NetworkImage(user.photoUrl!)
                               : null,
-                          child: (user.photoUrl == null || user.photoUrl!.isEmpty)
+                          child: (user.photoUrl == null || !user.photoUrl!.startsWith('http'))
                               ? Text(user.name.isNotEmpty ? user.name[0] : 'U',
                                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black))
                               : null,
@@ -215,11 +215,15 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                             Text(
                               isStudent
                                   ? 'Mahasiswa (Customer)'
-                                  : (isStudentDriver ? 'Driver Mahasiswa' : 'Driver Umum'),
+                                  : (isStudentDriver
+                                      ? 'Driver Mahasiswa'
+                                      : (user.role == 'merchant' ? 'Merchant Makanan' : 'Driver Umum')),
                               style: TextStyle(
                                 color: isStudent
                                     ? Colors.blue
-                                    : (isStudentDriver ? Colors.green : Colors.amber.shade800),
+                                    : (isStudentDriver
+                                        ? Colors.green
+                                        : (user.role == 'merchant' ? Colors.deepOrange : Colors.amber.shade800)),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -646,6 +650,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
             final mahasiswaList = allUsers.where((u) => u.role == 'mahasiswa').toList();
             final driverMhsList = allUsers.where((u) => u.role == 'driver_kampus').toList();
             final driverUmumList = allUsers.where((u) => u.role == 'driver_umum').toList();
+            final merchantList = allUsers.where((u) => u.role == 'merchant').toList();
 
             return Column(
               children: [
@@ -770,6 +775,8 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                     unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
                     labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                     unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
                     tabs: [
                       Tab(
                         height: 36,
@@ -782,6 +789,10 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                       Tab(
                         height: 36,
                         child: Text('Driver Umum (${driverUmumList.length})'),
+                      ),
+                      Tab(
+                        height: 36,
+                        child: Text('Merchant (${merchantList.length})'),
                       ),
                     ],
                   ),
@@ -801,6 +812,7 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                                 _buildUserList(mahasiswaList, 'mahasiswa', cardBg, borderColor, textColorPrimary),
                                 _buildUserList(driverMhsList, 'driver_kampus', cardBg, borderColor, textColorPrimary),
                                 _buildUserList(driverUmumList, 'driver_umum', cardBg, borderColor, textColorPrimary),
+                                _buildUserList(merchantList, 'merchant', cardBg, borderColor, textColorPrimary),
                               ],
                             ),
                 ),
@@ -873,10 +885,10 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                         CircleAvatar(
                           radius: 24,
                           backgroundColor: kPrimary.withOpacity(0.2),
-                          backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty)
+                          backgroundImage: (user.photoUrl != null && user.photoUrl!.startsWith('http'))
                               ? NetworkImage(user.photoUrl!)
                               : null,
-                          child: (user.photoUrl == null || user.photoUrl!.isEmpty)
+                          child: (user.photoUrl == null || !user.photoUrl!.startsWith('http'))
                               ? Text(user.name.isNotEmpty ? user.name[0] : 'U',
                                   style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black))
                               : null,
@@ -934,19 +946,25 @@ class _AdminDriversScreenState extends State<AdminDriversScreen>
                                 ? Colors.blue.withValues(alpha: 0.12)
                                 : (user.role == 'driver_kampus'
                                     ? Colors.green.withValues(alpha: 0.12)
-                                    : Colors.amber.withValues(alpha: 0.12)),
+                                    : (user.role == 'merchant'
+                                        ? Colors.orange.withValues(alpha: 0.14)
+                                        : Colors.amber.withValues(alpha: 0.12))),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             user.role == 'mahasiswa'
                                 ? 'Mahasiswa'
-                                : (user.role == 'driver_kampus' ? 'Driver Mhs' : 'Driver Umum'),
+                                : (user.role == 'driver_kampus'
+                                    ? 'Driver Mhs'
+                                    : (user.role == 'merchant' ? 'Merchant' : 'Driver Umum')),
                             style: TextStyle(
                               color: user.role == 'mahasiswa'
                                   ? Colors.blue.shade700
                                   : (user.role == 'driver_kampus'
                                       ? Colors.green.shade700
-                                      : Colors.amber.shade900),
+                                      : (user.role == 'merchant'
+                                          ? Colors.deepOrange
+                                          : Colors.amber.shade900)),
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),

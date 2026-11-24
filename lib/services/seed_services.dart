@@ -12,6 +12,8 @@ import 'auth_services.dart';
 ///   driverm2   -> username "driverm2",   NIM "140810230012", HP "081200000012"
 ///   driveru    -> username "driveru",    tanpa NIM,          HP "081200000003"
 ///   driveru2   -> username "driveru2",   tanpa NIM,          HP "081200000013"
+///   merchant   -> username "merchant",   Warung Geprek Bunda USU
+///   merchant2  -> username "merchant2",  Kedai Kopi & Mie Fasilkom
 ///   admin      -> username "admin",      tanpa NIM,          tanpa HP
 class SeedService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -158,6 +160,110 @@ class SeedService {
         'vehiclePlate': 'BK 9012 UMM',
         'vehicleBrand': 'Honda Beat Street',
         'isOnline': false,
+      },
+    },
+
+    // ── Merchant Toko Makanan ───────────────────────────────────────────────
+    {
+      'username': 'merchant',
+      'email': 'merchant.demo@gaskampus-dev.com',
+      'name': 'Ibu Sari (Warung Bunda)',
+      'role': 'merchant',
+      'phone': '081200008801',
+      'isVerified': true,
+      'walletBalance': 0,
+      'walletCoins': 0,
+      'merchantProfile': {
+        'name': 'Warung Geprek Bunda USU',
+        'category': 'Ayam & Nasi',
+        'address': 'Kantin Pusat USU Lt. 1, Jl. Universitas No. 9, Medan',
+        'latitude': 3.5628,
+        'longitude': 98.6578,
+        'bannerHeadline': 'Gratis Es Teh setiap pembelian Paket Komplit!',
+        'bannerTheme': 'orange',
+        'bannerData': '',
+        'isOpen': true,
+        'rating': 4.9,
+        'menus': [
+          {
+            'id': 'm1',
+            'name': 'Paket Ayam Geprek Komplit',
+            'description': 'Nasi putih, ayam geprek sambal bawang, tahu & lalapan',
+            'price': 15000,
+            'category': 'Paket Hemat',
+            'imageData': '',
+            'isAvailable': true,
+          },
+          {
+            'id': 'm2',
+            'name': 'Ayam Bakar Madu + Nasi',
+            'description': 'Bumbu madu bakar khas dengan sambal kecap terasi',
+            'price': 18000,
+            'category': 'Makanan Berat',
+            'imageData': '',
+            'isAvailable': true,
+          },
+          {
+            'id': 'm3',
+            'name': 'Es Teh Manis Jumbo',
+            'description': 'Segar dingin manis pas untuk menemani makan siang',
+            'price': 5000,
+            'category': 'Minuman',
+            'imageData': '',
+            'isAvailable': true,
+          },
+        ],
+      },
+    },
+    {
+      'username': 'merchant2',
+      'email': 'merchant2.demo@gaskampus-dev.com',
+      'name': 'Bang Rizky (Kedai Fasilkom)',
+      'role': 'merchant',
+      'phone': '081200008802',
+      'isVerified': true,
+      'walletBalance': 0,
+      'walletCoins': 0,
+      'merchantProfile': {
+        'name': 'Kedai Kopi & Mie Fasilkom',
+        'category': 'Kopi & Minuman',
+        'address': 'Jl. Dr. T. Mansyur Pintu 1 USU, Padang Bulan, Medan',
+        'latitude': 3.5648,
+        'longitude': 98.6562,
+        'bannerHeadline': 'Kopi Susu Gula Aren mulai Rp 10.000 khusus Mahasiswa!',
+        'bannerTheme': 'lime',
+        'bannerData': '',
+        'isOpen': true,
+        'rating': 4.8,
+        'menus': [
+          {
+            'id': 'k1',
+            'name': 'Es Kopi Susu Gula Aren',
+            'description': 'Espresso robusta Medan + susu segar + gula aren asli',
+            'price': 12000,
+            'category': 'Minuman',
+            'imageData': '',
+            'isAvailable': true,
+          },
+          {
+            'id': 'k2',
+            'name': 'Mie Ayam Jamur Spesial',
+            'description': 'Mie kenyal dengan topping ayam kecap & pangsit renyah',
+            'price': 16000,
+            'category': 'Makanan Berat',
+            'imageData': '',
+            'isAvailable': true,
+          },
+          {
+            'id': 'k3',
+            'name': 'Roti Bakar Coklat Keju',
+            'description': 'Roti tebal panggang mentega isi coklat lumer & keju parut',
+            'price': 10000,
+            'category': 'Snack & Cemilan',
+            'imageData': '',
+            'isAvailable': true,
+          },
+        ],
       },
     },
 
@@ -393,6 +499,20 @@ class SeedService {
             'createdAt': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
           });
         }
+      }
+
+      // ── 4b. Koleksi merchants/{uid} untuk role merchant ────────────────────
+      final mp = u['merchantProfile'] as Map<String, dynamic>?;
+      if (mp != null) {
+        await _db.collection('merchants').doc(uid).set({
+          'ownerUid': uid,
+          'ownerName': u['name'],
+          'phone': normalizedPhone ?? '',
+          'totalOrders': 0,
+          ...mp,
+          'createdAt': now,
+          'updatedAt': now,
+        });
       }
 
       log.add('Firestore diisi: users/$uid (${u['role']})');

@@ -4813,10 +4813,15 @@ class _ServiceOrderData {
     final distNum = (data['distanceKm'] as num?)?.toDouble() ?? 1.0;
     final computedFare =
         fareNum ?? FarePricingService.calculateMotorFare(distNum);
+    final merchantName = (data['merchantName'] ?? '').toString().trim();
+    final rawItems = (data['items'] ?? '').toString().trim();
+    final displayItems = merchantName.isNotEmpty && rawItems.isNotEmpty
+        ? '$merchantName: $rawItems'
+        : rawItems;
     return _ServiceOrderData(
       id: id,
       serviceType: (data['serviceType'] ?? '').toString(),
-      items: (data['items'] ?? '').toString(),
+      items: displayItems,
       originAddress: (data['originAddress'] ?? '').toString(),
       destinationAddress: (data['destinationAddress'] ?? '').toString(),
       note: (data['note'] ?? '').toString(),

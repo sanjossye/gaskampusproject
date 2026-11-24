@@ -13,4 +13,5 @@ export 'schedule_model.dart';
 export 'review_model.dart';
 export 'promo_model.dart';
 export 'leaderboard_model.dart';
+export 'merchant_model.dart';
 

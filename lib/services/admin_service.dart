@@ -78,6 +78,7 @@ class AdminService {
       int totalMahasiswa = 0;
       int driverMahasiswa = 0;
       int driverUmum = 0;
+      int totalMerchants = 0;
       int pendingVerification = 0;
 
       for (var doc in snapshot.docs) {
@@ -93,6 +94,8 @@ class AdminService {
         } else if (role == 'driver_umum') {
           driverUmum++;
           if (!isVerified) pendingVerification++;
+        } else if (role == 'merchant') {
+          totalMerchants++;
         }
       }
 
@@ -100,6 +103,7 @@ class AdminService {
         'totalMahasiswa': totalMahasiswa,
         'driverMahasiswa': driverMahasiswa,
         'driverUmum': driverUmum,
+        'totalMerchants': totalMerchants,
         'pendingVerification': pendingVerification,
       };
     });

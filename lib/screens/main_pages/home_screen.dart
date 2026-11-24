@@ -13,6 +13,7 @@ import 'profile_screen.dart';
 import 'topup_modal.dart';
 import 'nearby_drivers_modal.dart';
 import 'service_order_screen.dart';
+import 'food_merchants_screen.dart';
 import 'jadwal_kuliah_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────
@@ -867,7 +868,7 @@ class _HomeScreenState extends State<HomeScreen>
         Icons.restaurant_rounded,
         const Color(0xFFFF9F43),
         Colors.white,
-        onTap: () => _openServiceOrder('makan'),
+        onTap: _openFoodMerchants,
       ),
       _ServiceItem(
         'Titip',
@@ -901,6 +902,20 @@ class _HomeScreenState extends State<HomeScreen>
         },
       ),
     );
+  }
+
+  /// Buka daftar Merchant Toko Makanan (banner, alamat, menu), lalu arahkan ke Riwayat jika pesan.
+  Future<void> _openFoodMerchants() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const FoodMerchantsScreen()),
+    );
+    if (result == true && mounted) {
+      setState(() {
+        _navIndex = 2;
+        _historySignal++;
+      });
+    }
   }
 
   /// Buka formulir Makan / Titip, lalu arahkan ke halaman Pesanan (riwayat).

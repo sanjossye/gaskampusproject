@@ -7,7 +7,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/merchant_model.dart';
 import '../services/auth_services.dart';
+import '../services/map_route_service.dart';
+import '../services/merchant_service.dart';
 import '../services/zone_service.dart';
 import 'main_pages/jadwal_kuliah_screen.dart';
 
@@ -89,9 +92,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   final _facultyController = TextEditingController();
+  final _merchantUsernameController = TextEditingController();
+  final _storeNameController = TextEditingController();
+  final _storeAddressController = TextEditingController();
+  final _storeBannerHeadlineController = TextEditingController();
 
-  /// mahasiswa | driver_kampus (driver mahasiswa) | driver_umum
+  /// mahasiswa | driver_kampus (driver mahasiswa) | driver_umum | merchant
   String _role = 'mahasiswa';
+
+  String _storeCategory = kMerchantCategories.first;
+  String _storeBannerTheme = 'lime';
+  String _storeBannerData = '';
+  double _storeLat = 3.5625;
+  double _storeLng = 98.6565;
+  final List<MerchantMenuItem> _merchantMenus = [];
 
   XFile? _docImage;
   Uint8List? _docBytes;
@@ -118,8 +132,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool get _isMahasiswa => _role == 'mahasiswa';
   bool get _isDriverMahasiswa => _role == 'driver_kampus';
   bool get _isDriverUmum => _role == 'driver_umum';
+  bool get _isMerchant => _role == 'merchant';
   bool get _isStudentRole => _isMahasiswa || _isDriverMahasiswa;
-  String get _docLabel => _isDriverUmum ? 'KTP' : 'KTM';
+  String get _docLabel => _isDriverUmum
+      ? 'KTP'
+      : (_isMerchant ? 'KTP Pemilik / Foto Toko' : 'KTM');
   int get _totalSchedules =>
       _schedules.values.fold(0, (total, list) => total + list.length);
 
@@ -132,6 +149,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _nameController.dispose();
     _facultyController.dispose();
+    _merchantUsernameController.dispose();
+    _storeNameController.dispose();
+    _storeAddressController.dispose();
+    _storeBannerHeadlineController.dispose();
     super.dispose();
   }
 
@@ -235,7 +256,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           const SizedBox(height: 24),
 
-                          // NIM (mahasiswa & driver mahasiswa) / NIK (driver umum)
+                          // NIM (mahasiswa & driver mahasiswa) / Username Toko (merchant) / NIK (driver umum)
                           if (_isStudentRole) ...[
                             _buildInputField(
                               label: 'Nomor Induk Mahasiswa (NIM)',
@@ -250,6 +271,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (v.isEmpty) return 'NIM wajib diisi.';
                                 if (!RegExp(r'^\d{5,20}$').hasMatch(v)) {
                                   return 'NIM hanya angka (5-20 digit).';
+                                }
+                                return null;
+                              },
+                            ),
+                          ] else if (_isMerchant) ...[
+                            _buildInputField(
+                              label: 'Username Toko (untuk Login)',
+                              hint: 'Contoh: warungbunda (tanpa spasi)',
+                              controller: _merchantUsernameController,
+                              bg: inputBg,
+                              textColor: textPrimary,
+                              border: borderColor,
+                              validator: (value) {
+                                final v = (value ?? '').trim().toLowerCase();
+                                if (v.isEmpty) {
+                                  return 'Username toko wajib diisi.';
+                                }
+                                if (v.contains(' ') || v.length < 3) {
+                                  return 'Minimal 3 karakter, tanpa spasi.';
                                 }
                                 return null;
                               },
@@ -335,13 +375,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             color: Color(0xFFF1F5F9),
                           ),
 
-                          // Info pribadi
+                          // Info pribadi / toko
                           Text(
-                            _isDriverUmum
-                                ? 'Informasi Driver Umum (KTP)'
-                                : (_isDriverMahasiswa
-                                      ? 'Informasi Driver Mahasiswa (KTM)'
-                                      : 'Informasi Mahasiswa (KTM)'),
+                            _isMerchant
+                                ? 'Informasi Toko Makanan'
+                                : (_isDriverUmum
+                                      ? 'Informasi Driver Umum (KTP)'
+                                      : (_isDriverMahasiswa
+                                            ? 'Informasi Driver Mahasiswa (KTM)'
+                                            : 'Informasi Mahasiswa (KTM)')),
                             style: TextStyle(
                               color: textPrimary,
                               fontSize: 20,
@@ -351,19 +393,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           const SizedBox(height: 24),
 
                           _buildInputField(
-                            label: 'Nama Lengkap',
-                            hint: _isDriverUmum ? 'Sesuai KTP' : 'Sesuai KTM',
+                            label: _isMerchant ? 'Nama Pemilik Toko' : 'Nama Lengkap',
+                            hint: _isMerchant
+                                ? 'Nama pengelola / pemilik warung'
+                                : (_isDriverUmum ? 'Sesuai KTP' : 'Sesuai KTM'),
                             controller: _nameController,
                             bg: inputBg,
                             textColor: textPrimary,
                             border: borderColor,
                             validator: (value) {
                               if ((value ?? '').trim().isEmpty) {
-                                return 'Nama lengkap wajib diisi.';
+                                return _isMerchant
+                                    ? 'Nama pemilik wajib diisi.'
+                                    : 'Nama lengkap wajib diisi.';
                               }
                               return null;
                             },
                           ),
+
+                          if (_isMerchant) ...[
+                            const SizedBox(height: 20),
+                            _buildMerchantSection(
+                              isDark: isDark,
+                              inputBg: inputBg,
+                              textPrimary: textPrimary,
+                              textSecondary: textSecondary,
+                              borderColor: borderColor,
+                            ),
+                          ],
 
                           if (_isStudentRole) ...[
                             const SizedBox(height: 20),
@@ -390,16 +447,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           // Upload KTM / KTP
                           _buildSectionLabel(
-                            _isDriverUmum
-                                ? 'Unggah Foto KTP'
-                                : 'Unggah Foto KTM',
+                            _isMerchant
+                                ? 'Unggah Foto $_docLabel (Opsional)'
+                                : 'Unggah Foto $_docLabel',
                             textPrimary,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _isDriverUmum
-                                ? 'Driver umum wajib melampirkan foto KTP untuk verifikasi admin.'
-                                : 'KTM dipakai untuk verifikasi status mahasiswa.',
+                            _isMerchant
+                                ? 'Boleh dilampirkan sebagai verifikasi pemilik/warung makanan.'
+                                : (_isDriverUmum
+                                      ? 'Driver umum wajib melampirkan foto KTP untuk verifikasi admin.'
+                                      : 'KTM dipakai untuk verifikasi status mahasiswa.'),
                             style: TextStyle(
                               color: textSecondary,
                               fontSize: 12,
@@ -544,12 +603,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final bool formValid = _formKey.currentState?.validate() ?? false;
     setState(() {
-      _docError = _docImage == null ? 'Foto $_docLabel wajib diunggah.' : null;
+      _docError = (!_isMerchant && _docImage == null)
+          ? 'Foto $_docLabel wajib diunggah.'
+          : null;
       _scheduleError = (_isStudentRole && _totalSchedules == 0)
           ? 'Isi minimal satu jadwal kuliah.'
           : null;
     });
-    if (!formValid || _docImage == null) return;
+    if (!formValid || (!_isMerchant && _docImage == null)) return;
     if (_isStudentRole && _totalSchedules == 0) return;
 
     setState(() {
@@ -561,7 +622,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final phone = _buildPhoneNumber();
       final username = _isStudentRole
           ? _nimController.text.trim()
-          : _nikController.text.trim();
+          : (_isMerchant
+                ? _merchantUsernameController.text.trim().toLowerCase()
+                : _nikController.text.trim());
 
       // 1. Buat akun di Firebase Auth + profil di Firestore (users, wallets & login_index)
       final user = await _authService
@@ -578,6 +641,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             jurusan: (_isStudentRole && _isTeknikSelected)
                 ? _selectedTeknikMajor
                 : null,
+            storeName: _isMerchant ? _storeNameController.text.trim() : null,
+            storeCategory: _isMerchant ? _storeCategory : null,
+            storeAddress: _isMerchant ? _storeAddressController.text.trim() : null,
           )
           .timeout(const Duration(seconds: 30));
 
@@ -586,16 +652,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final userRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid);
-      final extension = _docImage!.name.contains('.')
+      final nowIso = DateTime.now().toIso8601String();
+
+      // 1b. Jika Merchant, buat profil toko di koleksi `merchants/{uid}`
+      if (_isMerchant) {
+        final now = DateTime.now();
+        final merchant = MerchantModel(
+          id: user.uid,
+          ownerUid: user.uid,
+          name: _storeNameController.text.trim(),
+          ownerName: _nameController.text.trim(),
+          phone: phone,
+          category: _storeCategory,
+          address: _storeAddressController.text.trim(),
+          latitude: _storeLat,
+          longitude: _storeLng,
+          bannerData: _storeBannerData,
+          bannerHeadline: _storeBannerHeadlineController.text.trim(),
+          bannerTheme: _storeBannerTheme,
+          isOpen: true,
+          menus: _merchantMenus,
+          createdAt: now,
+          updatedAt: now,
+        );
+        try {
+          await MerchantService()
+              .upsertMerchant(merchant)
+              .timeout(const Duration(seconds: 20));
+        } catch (_) {}
+      }
+
+      final extension = (_docImage?.name.contains('.') ?? false)
           ? _docImage!.name.split('.').last.toLowerCase()
           : 'jpg';
       final contentType = extension == 'jpg'
           ? 'image/jpeg'
           : 'image/$extension';
-      final nowIso = DateTime.now().toIso8601String();
-      final folder = _isDriverUmum ? 'ktp' : 'ktm';
-      final urlField = _isDriverUmum ? 'ktpUrl' : 'ktmUrl';
-      final storageField = _isDriverUmum ? 'ktpStorage' : 'ktmStorage';
+      final folder = _isDriverUmum || _isMerchant ? 'ktp' : 'ktm';
+      final urlField = _isDriverUmum || _isMerchant ? 'ktpUrl' : 'ktmUrl';
+      final storageField =
+          _isDriverUmum || _isMerchant ? 'ktpStorage' : 'ktmStorage';
 
       // 2. Simpan jadwal kuliah Senin–Jumat ke StudentScheduleStore & users/{uid}/schedules
       if (_isStudentRole) {
@@ -644,53 +740,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       // 3. Upload berkas identitas (KTM / KTP) ke Firebase Storage atau fallback ke Firestore
-      try {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child(folder)
-            .child(user.uid)
-            .child(
-              '${folder}_${DateTime.now().millisecondsSinceEpoch}.$extension',
-            );
-
-        await storageRef
-            .putData(_docBytes!, SettableMetadata(contentType: contentType))
-            .timeout(const Duration(seconds: 15));
-        final downloadUrl = await storageRef.getDownloadURL().timeout(
-          const Duration(seconds: 12),
-        );
-
-        await userRef
-            .update({
-              urlField: downloadUrl,
-              storageField: 'storage',
-              '${folder}UploadedAt': nowIso,
-            })
-            .timeout(const Duration(seconds: 15));
-      } catch (_) {
-        // Fallback: simpan foto langsung di Firestore (subkoleksi users/{uid}/documents)
+      if (_docImage != null && _docBytes != null) {
         try {
-          if (_docBytes!.length <= 750 * 1024) {
-            await userRef
-                .collection('documents')
-                .doc(folder)
-                .set({
-                  'docType': folder,
-                  'nik': _isDriverUmum ? _nikController.text.trim() : null,
-                  'fileName': _docImage!.name,
-                  'contentType': contentType,
-                  'base64': base64Encode(_docBytes!),
-                  'uploadedAt': nowIso,
-                })
-                .timeout(const Duration(seconds: 15));
-          }
+          final storageRef = FirebaseStorage.instance
+              .ref()
+              .child(folder)
+              .child(user.uid)
+              .child(
+                '${folder}_${DateTime.now().millisecondsSinceEpoch}.$extension',
+              );
+
+          await storageRef
+              .putData(_docBytes!, SettableMetadata(contentType: contentType))
+              .timeout(const Duration(seconds: 15));
+          final downloadUrl = await storageRef.getDownloadURL().timeout(
+            const Duration(seconds: 12),
+          );
+
           await userRef
               .update({
-                storageField: 'firestore',
+                urlField: downloadUrl,
+                storageField: 'storage',
                 '${folder}UploadedAt': nowIso,
               })
               .timeout(const Duration(seconds: 15));
-        } catch (_) {}
+        } catch (_) {
+          // Fallback: simpan foto langsung di Firestore (subkoleksi users/{uid}/documents)
+          try {
+            if (_docBytes!.length <= 750 * 1024) {
+              await userRef
+                  .collection('documents')
+                  .doc(folder)
+                  .set({
+                    'docType': folder,
+                    'nik': _isDriverUmum ? _nikController.text.trim() : null,
+                    'fileName': _docImage!.name,
+                    'contentType': contentType,
+                    'base64': base64Encode(_docBytes!),
+                    'uploadedAt': nowIso,
+                  })
+                  .timeout(const Duration(seconds: 15));
+            }
+            await userRef
+                .update({
+                  storageField: 'firestore',
+                  '${folder}UploadedAt': nowIso,
+                })
+                .timeout(const Duration(seconds: 15));
+          } catch (_) {}
+        }
       }
 
       if (!mounted) return;
@@ -803,61 +901,405 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'sub': 'Pakai KTP',
         'icon': Icons.badge_outlined,
       },
+      {
+        'role': 'merchant',
+        'label': 'Merchant',
+        'sub': 'Toko Makanan',
+        'icon': Icons.storefront_rounded,
+      },
     ];
 
-    return Row(
-      children: roles.map((r) {
-        final role = r['role'] as String;
-        final selected = _role == role;
-
-        return Expanded(
-          child: GestureDetector(
-            onTap: _loading ? null : () => _selectRole(role),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              margin: EdgeInsets.only(right: role == 'driver_umum' ? 0 : 8),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-              decoration: BoxDecoration(
-                color: selected
-                    ? kPrimary.withOpacity(isDark ? 0.18 : 0.22)
-                    : (isDark
-                          ? const Color(0xFF0F1405)
-                          : const Color(0xFFF1F5F9)),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: selected ? kPrimary : border,
-                  width: selected ? 2 : 1,
+    Widget buildRoleCard(Map<String, Object> r) {
+      final role = r['role'] as String;
+      final selected = _role == role;
+      return GestureDetector(
+        onTap: _loading ? null : () => _selectRole(role),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? kPrimary.withOpacity(isDark ? 0.18 : 0.22)
+                : (isDark ? const Color(0xFF0F1405) : const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? kPrimary : border,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                r['icon'] as IconData,
+                size: 22,
+                color: selected ? textPrimary : textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      r['label'] as String,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      r['sub'] as String,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: textSecondary, fontSize: 10.5),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                children: [
-                  Icon(
-                    r['icon'] as IconData,
-                    size: 24,
-                    color: selected ? textPrimary : textSecondary,
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: buildRoleCard(roles[0])),
+            const SizedBox(width: 10),
+            Expanded(child: buildRoleCard(roles[1])),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: buildRoleCard(roles[2])),
+            const SizedBox(width: 10),
+            Expanded(child: buildRoleCard(roles[3])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMerchantSection({
+    required bool isDark,
+    required Color inputBg,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color borderColor,
+  }) {
+    final previewStore = MerchantModel(
+      id: 'preview',
+      ownerUid: 'preview',
+      name: _storeNameController.text.trim().isEmpty
+          ? 'Nama Toko Makanan Anda'
+          : _storeNameController.text.trim(),
+      category: _storeCategory,
+      address: _storeAddressController.text.trim().isEmpty
+          ? 'Alamat toko akan tampil di sini'
+          : _storeAddressController.text.trim(),
+      bannerData: _storeBannerData,
+      bannerHeadline: _storeBannerHeadlineController.text.trim().isEmpty
+          ? 'Promo spesial mahasiswa!'
+          : _storeBannerHeadlineController.text.trim(),
+      bannerTheme: _storeBannerTheme,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInputField(
+          label: 'Nama Toko / Warung Makanan',
+          hint: 'Contoh: Warung Ayam Geprek Bunda USU',
+          controller: _storeNameController,
+          bg: inputBg,
+          textColor: textPrimary,
+          border: borderColor,
+          onChanged: (_) => setState(() {}),
+          validator: (value) {
+            if (_isMerchant && (value ?? '').trim().isEmpty) {
+              return 'Nama toko makanan wajib diisi.';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Kategori Makanan',
+          style: TextStyle(
+            color: textPrimary.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: inputBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: DropdownButtonFormField<String>(
+            initialValue: _storeCategory,
+            isExpanded: true,
+            dropdownColor: isDark ? const Color(0xFF151C0A) : Colors.white,
+            style: TextStyle(color: textPrimary, fontSize: 14.5),
+            decoration: const InputDecoration(border: InputBorder.none),
+            items: kMerchantCategories
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _storeCategory = v);
+            },
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Alamat Toko Makanan',
+              style: TextStyle(
+                color: textPrimary.withOpacity(0.8),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                final gps = await MapRouteService.getCurrentDriverPosition(
+                  campusFallback: MapRouteService.defaultKampusCenter,
+                );
+                final addr = await MapRouteService.reverseGeocodePosition(
+                  gps.position,
+                );
+                if (!mounted) return;
+                setState(() {
+                  _storeLat = gps.position.latitude;
+                  _storeLng = gps.position.longitude;
+                  _storeAddressController.text = addr;
+                });
+              },
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                foregroundColor: const Color(0xFF6B8E00),
+              ),
+              icon: const Icon(Icons.my_location_rounded, size: 15),
+              label: const Text(
+                'Deteksi GPS',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        _buildInputField(
+          label: '',
+          hint: 'Contoh: Kantin Pusat USU Lt. 1, Jl. Universitas No. 9',
+          controller: _storeAddressController,
+          bg: inputBg,
+          textColor: textPrimary,
+          border: borderColor,
+          validator: (value) {
+            if (_isMerchant && (value ?? '').trim().isEmpty) {
+              return 'Alamat toko makanan wajib diisi.';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 18),
+        _buildInputField(
+          label: 'Teks Promo Banner Toko (Opsional)',
+          hint: 'Contoh: Gratis Es Teh setiap pesan Paket Komplit!',
+          controller: _storeBannerHeadlineController,
+          bg: inputBg,
+          textColor: textPrimary,
+          border: borderColor,
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Banner Toko (Tampil di Mahasiswa)',
+          style: TextStyle(
+            color: textPrimary.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        MerchantBannerView(
+          merchant: previewStore,
+          height: 132,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: kMerchantBannerThemes.map((t) {
+              final selected = _storeBannerTheme == t.key;
+              return GestureDetector(
+                onTap: () => setState(() => _storeBannerTheme = t.key),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    r['label'] as String,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: textPrimary,
-                      fontSize: 12,
-                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: t.gradient),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(
+                      color: selected ? textPrimary : Colors.transparent,
+                      width: 2,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    r['sub'] as String,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: textSecondary, fontSize: 10),
+                  child: Text(
+                    t.label,
+                    style: TextStyle(
+                      color: t.textColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 60,
+                  maxWidth: 960,
+                );
+                if (picked == null) return;
+                final bytes = await picked.readAsBytes();
+                if (bytes.length > 500 * 1024) {
+                  _showSnack('Ukuran foto banner maksimal 500 KB.', Colors.red);
+                  return;
+                }
+                setState(() {
+                  _storeBannerData = MerchantService.bytesToDataUri(
+                    bytes,
+                    picked.name,
+                  );
+                });
+              },
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: const Text('Upload Foto Banner'),
+            ),
+            if (_storeBannerData.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => setState(() => _storeBannerData = ''),
+                child: const Text(
+                  'Pakai Tema',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Menu Makanan Awal (${_merchantMenus.length})',
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                final item = await showDialog<MerchantMenuItem>(
+                  context: context,
+                  builder: (_) => const _AddStarterMenuDialog(),
+                );
+                if (item != null && mounted) {
+                  setState(() => _merchantMenus.add(item));
+                }
+              },
+              icon: const Icon(
+                Icons.add_rounded,
+                size: 18,
+                color: Color(0xFF6B8E00),
+              ),
+              label: const Text(
+                'Tambah Menu',
+                style: TextStyle(
+                  color: Color(0xFF6B8E00),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_merchantMenus.isEmpty)
+          Text(
+            'Opsional: Tambahkan daftar menu sekarang atau setelah masuk ke dashboard toko.',
+            style: TextStyle(color: textSecondary, fontSize: 12),
+          )
+        else
+          ...List.generate(_merchantMenus.length, (i) {
+            final m = _merchantMenus[i];
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: inputBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m.name,
+                          style: TextStyle(
+                            color: textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        Text(
+                          '${m.category} · ${MerchantService.formatRupiah(m.price)}',
+                          style: TextStyle(color: textSecondary, fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: () => setState(() => _merchantMenus.removeAt(i)),
                   ),
                 ],
               ),
-            ),
-          ),
-        );
-      }).toList(),
+            );
+          }),
+      ],
     );
   }
 
@@ -913,19 +1355,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     String? Function(String?)? validator,
     bool obscureText = false,
     Widget? suffixIcon,
+    ValueChanged<String>? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: textColor.withOpacity(0.8),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor.withOpacity(0.8),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
         Container(
           constraints: const BoxConstraints(minHeight: 52),
           padding: EdgeInsets.only(
@@ -945,6 +1390,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: keyboardType,
                   obscureText: obscureText,
                   validator: validator,
+                  onChanged: onChanged,
                   decoration: InputDecoration(
                     hintText: hint,
                     hintStyle: TextStyle(color: textColor.withOpacity(0.3)),
@@ -1745,6 +2191,144 @@ class _AddCourseDialogState extends State<_AddCourseDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AddStarterMenuDialog extends StatefulWidget {
+  const _AddStarterMenuDialog();
+
+  @override
+  State<_AddStarterMenuDialog> createState() => _AddStarterMenuDialogState();
+}
+
+class _AddStarterMenuDialogState extends State<_AddStarterMenuDialog> {
+  final _nameCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  String _category = kMenuCategories.first;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _nameCtrl.text.trim();
+    final price = int.tryParse(_priceCtrl.text.trim()) ?? 0;
+    if (name.isEmpty || price <= 0) {
+      setState(() => _error = 'Nama menu dan harga (Rp) wajib diisi.');
+      return;
+    }
+    Navigator.pop(
+      context,
+      MerchantMenuItem(
+        id: 'menu_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        price: price,
+        description: _descCtrl.text.trim(),
+        category: _category,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF0F172A);
+    final textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF475569);
+
+    return AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF1D2210) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        'Tambah Menu Toko',
+        style: TextStyle(
+          color: textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              style: TextStyle(color: textPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Nama Menu (cth: Ayam Geprek)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceCtrl,
+              keyboardType: TextInputType.number,
+              style: TextStyle(color: textPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Harga (Rp)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: const InputDecoration(
+                labelText: 'Kategori',
+                border: OutlineInputBorder(),
+              ),
+              items: kMenuCategories
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _category = v);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descCtrl,
+              style: TextStyle(color: textPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Deskripsi Singkat (Opsional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Batal', style: TextStyle(color: textSecondary)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kPrimary,
+            foregroundColor: Colors.black,
+          ),
+          onPressed: _save,
+          child: const Text(
+            'Simpan',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
 }
