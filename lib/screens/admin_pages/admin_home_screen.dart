@@ -6,6 +6,7 @@ import 'drivers/admin_drivers_screen.dart';
 import 'orders/admin_orders_screen.dart';
 import 'reports/admin_reports_screen.dart';
 import 'settings/admin_fare_settings_modal.dart';
+import 'vouchers/admin_voucher_management_screen.dart';
 
 const Color kPrimary = Color(0xFF68CD5C);
 const Color kBgDark = Color(0xFF1D2210);
@@ -182,96 +183,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  // ── 2. Dialog Buat Voucher Promo Baru ─────────────────────────────────────
-  void _showCreatePromoDialog() {
-    final codeCtrl = TextEditingController(text: 'GASHEMAT');
-    final titleCtrl = TextEditingController(text: 'Promo Mahasiswa Kampus');
-    final discountCtrl = TextEditingController(text: '5000');
-    final minOrderCtrl = TextEditingController(text: '15000');
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.confirmation_number_rounded, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Buat Kupon Promo', style: TextStyle(fontSize: 16)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: codeCtrl,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(labelText: 'Kode Voucher (Huruf Kapital)', border: OutlineInputBorder(), isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(labelText: 'Judul Promo', border: OutlineInputBorder(), isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: discountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Nominal Potongan (Rp)', border: OutlineInputBorder(), isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: minOrderCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Minimal Transaksi (Rp)', border: OutlineInputBorder(), isDense: true),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: kPrimary, foregroundColor: Colors.black),
-            onPressed: () async {
-              final code = codeCtrl.text.trim();
-              final title = titleCtrl.text.trim();
-              final discount = int.tryParse(discountCtrl.text.trim()) ?? 0;
-              final minOrder = int.tryParse(minOrderCtrl.text.trim()) ?? 0;
-
-              if (code.isEmpty || title.isEmpty || discount <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Harap isi data promo dengan valid')),
-                );
-                return;
-              }
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.pop(ctx);
-              try {
-                await _adminService.createPromoVoucher(
-                  code: code,
-                  title: title,
-                  discount: discount,
-                  minOrder: minOrder,
-                );
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text('Voucher promo $code berhasil dibuat di Firestore!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Gagal membuat promo: $e'), backgroundColor: Colors.red),
-                );
-              }
-            },
-            child: const Text('Simpan Promo', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── 3. Dialog Diagnostik Status Sistem ────────────────────────────────────
   void _showServerStatusDialog() {
     showDialog(
@@ -363,11 +274,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _buildQuickActionItem(
               icon: Icons.confirmation_number_rounded,
               color: Colors.orange,
-              title: 'Buat Voucher Promo Baru',
-              sub: 'Tambah kupon potongan tarif ojek/makanan',
+              title: 'Kelola Voucher & Promo Mahasiswa',
+              sub: 'Buat, edit, & aktifkan kupon promo diskon kampus',
               onTap: () {
                 Navigator.pop(ctx);
-                _showCreatePromoDialog();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminVoucherManagementScreen(),
+                  ),
+                );
               },
             ),
             _buildQuickActionItem(
@@ -512,94 +428,85 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               children: [
                 // --- Header with Logout ---
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: kPrimary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.person_rounded,
+                          color: Colors.black87,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              color: kPrimary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.person_rounded,
-                                color: Colors.black87,
-                                size: 26,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('ADMINISTRATOR', style: _body(textColorSecondary, 10, FontWeight.bold, ls: 1)),
-                                Text(
-                                  'Dashboard Kampus',
-                                  style: _body(textColorPrimary, 16, FontWeight.bold),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
+                          Text('ADMINISTRATOR', style: _body(textColorSecondary, 10, FontWeight.bold, ls: 1)),
+                          Text(
+                            'Dashboard Kampus',
+                            style: _body(textColorPrimary, 16, FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Notification Button
-                        GestureDetector(
-                          onTap: () => setState(() => _currentIndex = 4),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Icon(Icons.notifications_outlined, color: textColorPrimary, size: 19),
-                                Positioned(
-                                  top: 8,
-                                  right: 8,
-                                  child: Container(
-                                    width: 7,
-                                    height: 7,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: bg, width: 1.5),
-                                    ),
-                                  ),
+                    // Notification Button
+                    GestureDetector(
+                      onTap: () => setState(() => _currentIndex = 4),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(Icons.notifications_outlined, color: textColorPrimary, size: 19),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: bg, width: 1.5),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        // Logout Button
-                        GestureDetector(
-                          onTap: _handleLogout,
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.logout_rounded, color: Colors.red, size: 18),
-                          ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Logout Button
+                    GestureDetector(
+                      onTap: _handleLogout,
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
                         ),
-                      ],
+                        child: const Icon(Icons.logout_rounded, color: Colors.red, size: 18),
+                      ),
                     ),
                   ],
                 ),
@@ -930,6 +837,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           border: borderColor,
                           onProcess: () {
                             setState(() => _currentIndex = 3);
+                          },
+                        ),
+                        _buildActionItem(
+                          title: 'Kelola Voucher & Promo (Vouchers)',
+                          sub: 'Buat kupon promo diskon mahasiswa & kantin',
+                          icon: Icons.discount_rounded,
+                          color: Colors.orange,
+                          bg: cardBg,
+                          text: textColorPrimary,
+                          textSec: textColorSecondary,
+                          border: borderColor,
+                          onProcess: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const AdminVoucherManagementScreen(),
+                              ),
+                            );
                           },
                         ),
                         _buildActionItem(

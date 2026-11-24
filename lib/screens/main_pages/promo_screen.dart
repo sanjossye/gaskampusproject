@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../models/voucher_model.dart';
+import '../../services/voucher_service.dart';
 
 // ── Palette (Disamakan dengan home_screen) ──────────────────────────────────
 const Color kPrimary       = Color(0xFFC0F637);
@@ -47,7 +49,16 @@ class _PromoScreenState extends State<PromoScreen> {
         if (_selectedTab == 0) ...[
           // TAB 0: VOUCHER SAYA
           SliverToBoxAdapter(child: _buildHeroBanner()),
-          SliverToBoxAdapter(child: _buildSectionHead('Voucher Tersedia', '4 Siap Pakai', tp)),
+          StreamBuilder<List<VoucherModel>>(
+            stream: VoucherService.streamActiveVouchers(),
+            builder: (context, snapshot) {
+              final vouchers = snapshot.data ?? [];
+              final countText = '${vouchers.length} Siap Pakai';
+              return SliverToBoxAdapter(
+                child: _buildSectionHead('Voucher Tersedia', countText, tp),
+              );
+            },
+          ),
           SliverToBoxAdapter(child: _buildVouchers(tp, ts, card, border, bg)),
         ] else if (_selectedTab == 1) ...[
           // TAB 1: PROMO MENARIK MAHASISWA
@@ -254,47 +265,57 @@ class _PromoScreenState extends State<PromoScreen> {
     );
   }
 
-  Widget _buildVouchers(Color tp, Color ts, Color card, Color border, Color bg) {
-    final vouchers = [
-      {
-        'title': 'Diskon Mahasiswa Baru 50%',
-        'desc': 'Min. order Rp10rb untuk semua rute antar kampus',
-        'date': 'Hingga 30 Nov 2026',
-        'code': 'MABAGAS',
-        'icon': Icons.motorcycle_rounded,
-        'badge': 'ANTAR',
-      },
-      {
-        'title': 'Gratis Ongkir Kantin Kampus',
-        'desc': 'Khusus pesanan makan dari kantin fakultas',
-        'date': 'Hingga 15 Des 2026',
-        'code': 'MAKANHEMAT',
-        'icon': Icons.restaurant_rounded,
-        'badge': 'MAKAN',
-      },
-      {
-        'title': 'Cashback 30% Koin GasPay',
-        'desc': 'Maksimal Rp10.000 untuk top-up dan bayar ojek',
-        'date': 'Hingga 25 Nov 2026',
-        'code': 'GASPAYSERU',
-        'icon': Icons.account_balance_wallet_rounded,
-        'badge': 'DOMPET',
-      },
-      {
-        'title': 'Potongan Jastip ATK & Print Rp5.000',
-        'desc': 'Fotokopi, print tugas, dan jastip modul kelas',
-        'date': 'Hingga 10 Des 2026',
-        'code': 'JASTIPATK',
-        'icon': Icons.shopping_bag_rounded,
-        'badge': 'TITIP',
-      },
-    ];
+  IconData _getVoucherCategoryIcon(String category) {
+    switch (category.toUpperCase()) {
+      case 'ANTAR':
+        return Icons.motorcycle_rounded;
+      case 'MAKAN':
+        return Icons.restaurant_rounded;
+      case 'DOMPET':
+        return Icons.account_balance_wallet_rounded;
+      case 'TITIP':
+        return Icons.shopping_bag_rounded;
+      default:
+        return Icons.discount_rounded;
+    }
+  }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: vouchers.map((v) => _buildVoucherCard(v, tp, ts, card, border)).toList(),
-      ),
+  Widget _buildVouchers(Color tp, Color ts, Color card, Color border, Color bg) {
+    return StreamBuilder<List<VoucherModel>>(
+      stream: VoucherService.streamActiveVouchers(),
+      builder: (context, snapshot) {
+        final vouchers = snapshot.data ?? [];
+        if (vouchers.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Center(
+              child: Text(
+                'Belum ada voucher aktif saat ini',
+                style: _body(ts, 13, FontWeight.w500),
+              ),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: vouchers.map((v) {
+              final item = {
+                'title': v.title,
+                'desc': v.description.isNotEmpty
+                    ? v.description
+                    : 'Potongan ${v.discountType == 'percent' ? '${v.discountValue}%' : 'Rp ${v.discountValue}'} min. order Rp ${v.minOrder}',
+                'date': v.validUntilText,
+                'code': v.code,
+                'icon': _getVoucherCategoryIcon(v.category),
+                'badge': v.category,
+              };
+              return _buildVoucherCard(item, tp, ts, card, border);
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 
